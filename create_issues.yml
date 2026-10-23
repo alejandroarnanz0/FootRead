@@ -1,0 +1,37 @@
+name: Crear issues del proyecto
+
+# Se lanza a mano desde la pestana Actions del repo.
+# No se ejecuta solo: no hay push ni schedule a proposito, porque
+# crear los issues dos veces los duplicaria.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Escribe CREAR para confirmar. Esto crea 29 issues y no se puede deshacer facilmente.'
+        required: true
+        default: ''
+
+jobs:
+  crear:
+    runs-on: ubuntu-latest
+
+    permissions:
+      issues: write
+
+    steps:
+      - name: Comprobar la confirmacion
+        if: ${{ github.event.inputs.confirmar != 'CREAR' }}
+        run: |
+          echo "No has escrito CREAR. Abortando para no crear issues por accidente."
+          exit 1
+
+      - name: Descargar el repo
+        uses: actions/checkout@v4
+
+      - name: Lanzar el script
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          chmod +x crear-issues.sh
+          ./crear-issues.sh
