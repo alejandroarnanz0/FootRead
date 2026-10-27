@@ -1,0 +1,30 @@
+# Local orchestration. The database is MongoDB Atlas, so there is no mongo service.
+# Reads variables from the root .env (see .env.example).
+services:
+  api:
+    build: ./api
+    ports:
+      - "3000:3000"
+    environment:
+      MONGODB_URI: ${MONGODB_URI}
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-development}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      ML_SERVICE_URL: http://ml:8000
+    depends_on:
+      - ml
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+  ml:
+    build: ./ml
+    ports:
+      - "8000:8000"

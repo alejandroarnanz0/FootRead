@@ -1,0 +1,27 @@
+#!/usr/bin/env node
+
+const http = require('http');
+const app = require('../app');
+
+// Render assigns the port through process.env.PORT
+const port = Number(process.env.PORT) || 3000;
+app.set('port', port);
+
+const server = http.createServer(app);
+
+server.listen(port);
+
+server.on('listening', () => {
+  console.log(`API listening on port ${port}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${port} is already in use`);
+  } else if (err.code === 'EACCES') {
+    console.error(`Port ${port} requires elevated privileges`);
+  } else {
+    console.error(err);
+  }
+  process.exit(1);
+});
