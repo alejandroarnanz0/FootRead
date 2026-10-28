@@ -158,6 +158,7 @@ foot           String, enum: ['left','right','both']
 heightCm       Number, min: 140, max: 220
 club           ObjectId → Club
 currentValue   Number, min: 0          // euros, desnormalizado para listar rápido
+predictedValue Number, min: 0          // euros, lo escribe el scoring offline (no la API)
 contractUntil  Date
 externalIds    { transfermarkt: String, fbref: String }
 ```
@@ -240,9 +241,11 @@ jugador bajo un club, el club es el de la ruta.
 | --- | --- | --- |
 | GET/POST | `/api/competitions` | Listar / crear |
 | GET/PUT/DELETE | `/api/competitions/:id` | Ver / modificar / eliminar |
-| GET/POST | `/api/competitions/:id/clubs` | Clubes de una competición |
+| GET/POST | `/api/competitions/:id/clubs` | Clubes de una competición / crear en ella |
+| GET | `/api/clubs` | Clubes de todas las competiciones (global) |
 | GET/PUT/DELETE | `/api/clubs/:id` | Ficha de club |
-| GET/POST | `/api/clubs/:id/players` | Jugadores de un club |
+| GET/POST | `/api/clubs/:id/players` | Jugadores de un club / crear en él |
+| GET | `/api/players` | Jugadores de todos los clubes (global, lo usa el Explorador) |
 | GET/PUT/DELETE | `/api/players/:id` | Ficha de jugador |
 | GET | `/api/players/:id/valuations` | Histórico de valoración |
 | GET | `/api/players/:id/stats` | Estadísticas por temporada |
@@ -261,6 +264,19 @@ parsea una sola vez y todos los routers de consulta lo reutilizan:
 ```
 
 Mal: `/players/position/FW/page/2`
+
+**Colecciones anidadas y globales.** Coexisten: la anidada sirve «los jugadores
+de este club» (el padre sale de la URL) y la global sirve al Explorador, que
+filtra jugadores de todos los clubes a la vez. Las dos comparten handler y
+filtros. Los **POST solo existen en la ruta anidada**, porque es la URL la que
+aporta la referencia al padre: `POST /api/players` y `POST /api/clubs` dan 404.
+
+Qué filtros aplica cada colección (los demás se ignoran):
+
+| Colección | Filtros |
+| --- | --- |
+| `/players`, `/clubs/:id/players` | `position`, `minAge`, `maxAge`, `maxValue`, `sort`, `page`, `limit`. `competition` solo en la global. |
+| `/clubs`, `/competitions/:id/clubs` | `sort`, `page`, `limit`. `competition` (código) solo en la global. |
 
 ### Códigos de estado
 
@@ -388,6 +404,33 @@ Render con auto-deploy desde `main`. Dos fallos que cuestan una tarde:
 
 ## 13. Estado actual
 
+Tanda 1 subida a `origin/main` (`05bcf3a`). Tanda 2 en la rama
+`feat/tanda-2-rutas`, sin commit todavía.
+
+**Hecho (tanda 2, rutas):**
+- Routers de la sección 9 en `api/routes/`: `competitions`, `clubs`, `players`, `valuations`, `stats`, `aggregates`, `predictions`, montados en `app.js`.
+- `api/middleware/filters.js`: `parseFilters` (parsea una vez a `req.filters`), `buildSort` (lista blanca por recurso), `buildPlayerFilter` y `pageResponse`.
+- `router.param` en `competitionId`, `clubId` y `playerId`: carga el recurso una vez (`req.competition`, `req.club`, `req.player`) y devuelve 404 si no pertenece al padre de la URL.
+- `/api/predictions/value` es un stub: devuelve `{ predictedValue: 10000000, shapValues: {}, stub: true }`.
+- Pruebas de integración en `api/test/api.test.js` (22 casos, `npm test`). Pasan contra un `mongod` temporal; **no se han podido ejecutar contra Atlas** (ver pendiente).
+
+**Decisiones tomadas en la tanda 2:**
+- Nuevo campo `Player.predictedValue` (euros). Sin él no hay residuos que servir. Lo escribirá el job de scoring offline; la API **no** lo acepta en POST/PUT.
+- `residual = predictedValue − currentValue`, calculado en el aggregation pipeline. `undervalued` y `summary` solo cuentan jugadores con ambos valores.
+- `summary` devuelve `players`, `scoredPlayers`, `totalMarketValue`, `maeEuros` y `meanResidual`, y respeta los mismos filtros.
+- Las listas responden `{ data, page, limit, total, totalPages }`. `limit` por encima de 200 se recorta a 200; valores no numéricos o `page < 1` dan 400.
+- Los filtros que no aplican a un recurso se ignoran (p. ej. `competition` en `/clubs/:id/players`, donde el club ya fija la competición). Un `competition` desconocido no devuelve nada. `position` admite lista separada por comas.
+- Valores de query que no son strings (`?position[$ne]=GK`) dan 400, para evitar inyección de operadores.
+- `sort` solo acepta campos de una lista blanca por recurso (400 si no); `_id` es el desempate para paginar de forma estable.
+- `GET /api/clubs` y `GET /api/players` son colecciones globales (con los filtros transversales) que coexisten con las anidadas. Los POST siguen solo en las anidadas: `POST /api/clubs` y `POST /api/players` dan 404. El padre nunca se puede cambiar por PUT.
+- En la global de clubes solo aplica `competition`; `position`, `minAge`, `maxAge` y `maxValue` no tienen sentido para clubes y se ignoran. En las anidadas `competition` se ignora, porque la URL ya fija el padre.
+- `PUT` actualiza solo los campos enviados (con `runValidators`) y da 400 si no llega ninguno válido.
+- `DELETE` responde 204. Borrar un jugador borra en cascada sus valoraciones y estadísticas. Borrar un club con jugadores, o una competición con clubes, da **409**.
+- Finales de línea: `.gitattributes` con `* text=auto eol=lf` y `core.autocrlf input` en el repo, para que Windows y WSL no vean cambios fantasma por CRLF.
+- `asyncHandler` reenvía argumentos extra para poder usarlo en `router.param`.
+- Valoraciones y estadísticas van en `routes/valuations.js` y `routes/stats.js`, no en `players.js`.
+- Las pruebas vacían las colecciones con `deleteMany` (no `dropDatabase`) y se niegan a correr si la base no acaba en `_test`.
+
 **Hecho (tanda 1):**
 - Estructura de carpetas del repo (`api/`, `web/`, `ml/`, `data/`).
 - `api/`: `app.js` (conexión a Atlas, CORS, manejador central de errores, `/api/health`), `bin/www`, `package.json`, `Dockerfile`.
@@ -404,9 +447,9 @@ Render con auto-deploy desde `main`. Dos fallos que cuestan una tarde:
 - `data/` está en `.gitignore`: las muestras congeladas **no se versionan**. Hay que documentar en el README cómo obtenerlas para que el proyecto siga siendo reproducible.
 
 **Pendiente:**
-- Rutas, middleware de filtros, ETL, frontend y servicio ML.
+- ETL, frontend y servicio ML.
 - `docker compose` solo puede construir `api`: faltan `web/package.json` y `ml/serve.py` con el modelo.
-- Sin probar contra un Atlas real: falta un `MONGODB_URI` válido.
+- **Credenciales de Atlas**: `MONGODB_URI_TEST` falla con `bad auth`. Revisar usuario y contraseña en Atlas (Database Access). `MONGODB_URI` no lleva nombre de base de datos tras el host, y tendrá que llevar `/footboard`.
 
 Pendiente de confirmar con el profesor: que la temática de fútbol está aprobada
 por escrito, y si hay requisito de autenticación.

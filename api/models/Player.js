@@ -8,6 +8,7 @@ const playerSchema = new mongoose.Schema({
   heightCm: { type: Number, min: 140, max: 220 },
   club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
   currentValue: { type: Number, min: 0 }, // euros, denormalized for fast listing
+  predictedValue: { type: Number, min: 0 }, // euros, written by the offline scoring job
   contractUntil: { type: Date },
   externalIds: {
     transfermarkt: { type: String, trim: true },
