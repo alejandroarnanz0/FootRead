@@ -404,8 +404,39 @@ Render con auto-deploy desde `main`. Dos fallos que cuestan una tarde:
 
 ## 13. Estado actual
 
-Tanda 1 subida a `origin/main` (`05bcf3a`). Tanda 2 en la rama
-`feat/tanda-2-rutas`, sin commit todavía.
+Tandas 1 y 2 fusionadas en `main` (PR #1). Tanda 3 en la rama
+`feat/tanda-3-seed`: parte A commiteada; parte B (frontend) sin commit.
+
+**Hecho (tanda 3, parte B: frontend):**
+- `web/`: React 19 + Vite 8 + react-router-dom 7 + axios + Recharts 3. `npm run dev` (puerto 5173, el que admite el CORS de la API) y `npm run build`.
+- `src/api/`: cliente axios único (`client.js`, base `VITE_API_URL`) y módulos por recurso (`players`, `competitions`, `aggregates`; `params.js` traduce los filtros a query string).
+- `src/hooks/useFilters.jsx`: estado global de filtros (Context + `useReducer`) en `FiltersProvider`; `useApi` (carga/error/reintento, aborta la petición anterior) y `useDebouncedValue`.
+- Vista Explorador completa: panel de filtros, scatter real vs. predicho y tabla ordenable, todos con la misma petición. Clic en un punto (o en el nombre en la tabla) abre `/players/:id`.
+- Ficha (`/players/:id`) con datos básicos; Visión general y Comparador son placeholders. Comprobado renderizando con Chrome headless: Explorador en claro y oscuro, ficha y error 400.
+
+**Decisiones tomadas en la tanda 3, parte B:**
+- El Explorador pide `/api/aggregates/undervalued?limit=200` una sola vez, y scatter y tabla comparten esa respuesta (ya trae residuo y nombre del club). Si hay más de 200 jugadores filtrados se avisa en pantalla («Mostrando 200 de N»); solo aparecen jugadores con `predictedValue`.
+- La ordenación de la tabla es estado local de la tabla (en cliente), no un filtro global.
+- Filtros con *debounce* de 300 ms; si edad mínima > máxima se avisa y no se llama a la API. Mientras recarga, la vista mantiene los datos anteriores atenuados.
+- Scatter con **escala logarítmica en ambos ejes** y el mismo dominio (la diagonal queda a 45°). Azul = infravalorado (residuo > 0), rojo = resto; paleta validada para modo claro y oscuro. Puntos con zona de clic de 24 px y tooltip.
+- `vite.config.js` usa `envDir: '..'`: lee `VITE_API_URL` del `.env` único de la raíz. Se añadió esa línea al `.env` local.
+- Si falta `VITE_API_URL`, el cliente falla con un mensaje explícito. Los errores de axios se convierten en «Error <status>: <mensaje de la API>» o «No se pudo conectar con la API».
+- Textos de la interfaz en español; código y comentarios en inglés. Rutas: `/` Explorador, `/players/:playerId`, `/overview`, `/compare`.
+- Sin librería de componentes ni CSS framework: CSS propio con tokens para modo claro/oscuro.
+- Pendiente del Explorador: arrastrar para seleccionar región en el scatter y descarga CSV (sección 10). El bundle pesa 686 kB (Recharts); se puede trocear más adelante.
+
+**Hecho (tanda 3, parte A: seed):**
+- `api/scripts/seed.js` y `npm run seed` (`npm run seed -- --force` para vaciar y recargar). Sigue el patrón del seed de los apuntes.
+- Ejecutado contra Atlas (`footboard`): 3 competiciones, 12 clubes, 120 jugadores, 1168 valoraciones y 467 estadísticas por temporada. Comprobado con curl: `/api/players` y `/api/aggregates/undervalued` devuelven datos.
+
+**Decisiones tomadas en la tanda 3:**
+- Datos **deterministas**: generador aleatorio con semilla fija y fecha de referencia fija (1-7-2026). Cada ejecución produce los mismos datos.
+- Competiciones con códigos de Transfermarkt: `ES1` (LaLiga), `GB1` (Premier League), `IT1` (Serie A). Clubes reales (4 por liga) con un factor de fuerza; **jugadores con nombres ficticios**, para que no pasen por reales.
+- Valor de mercado log-normal: valor «fundamental» según talento, curva de edad (pico 25-26), posición, liga y club. Resultado: mediana 2,8 M€, p90 14,5 M€, máximo 74,5 M€; 78 de 120 por debajo de 5 M€.
+- `currentValue` = fundamental × ruido de mercado (10 % infravalorados, 6 % sobrevalorados, resto ±30 %); `predictedValue` = fundamental × ruido pequeño (±15 %). Así los residuos señalan a los mal tasados por el «mercado».
+- Valoraciones semestrales (1 dic / 1 jun) desde dic-2021, solo desde los 16 años; la última coincide con `currentValue`.
+- Estadísticas de 2022-23 a 2025-26 en la liga actual del club (sin traspasos); minutos y producción por 90 dependen de posición, talento y edad.
+- `--force` vacía las cinco colecciones; sin él, el script no toca una base que tenga datos en cualquiera de ellas.
 
 **Hecho (tanda 2, rutas):**
 - Routers de la sección 9 en `api/routes/`: `competitions`, `clubs`, `players`, `valuations`, `stats`, `aggregates`, `predictions`, montados en `app.js`.
@@ -449,7 +480,8 @@ Tanda 1 subida a `origin/main` (`05bcf3a`). Tanda 2 en la rama
 **Pendiente:**
 - ETL, frontend y servicio ML.
 - `docker compose` solo puede construir `api`: faltan `web/package.json` y `ml/serve.py` con el modelo.
-- **Credenciales de Atlas**: `MONGODB_URI_TEST` falla con `bad auth`. Revisar usuario y contraseña en Atlas (Database Access). `MONGODB_URI` no lleva nombre de base de datos tras el host, y tendrá que llevar `/footboard`.
+- **Credenciales de Atlas**: `MONGODB_URI` ya funciona (base `footboard`). `MONGODB_URI_TEST` no se ha vuelto a probar desde el `bad auth` de la tanda 2.
+- Tanda 3, parte B.
 
 Pendiente de confirmar con el profesor: que la temática de fútbol está aprobada
 por escrito, y si hay requisito de autenticación.
