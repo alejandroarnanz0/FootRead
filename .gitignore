@@ -26,3 +26,6 @@ Thumbs.db
 
 #data
 data/
+
+#password
+github_user_password.md

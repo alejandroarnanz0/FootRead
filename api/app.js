@@ -28,10 +28,15 @@ if (process.env.NODE_ENV !== 'test') app.use(logger('dev'));
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
 app.use(express.json());
 
-// Routes (mounted here as they are added)
+// Routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+app.use('/api/competitions', require('./routes/competitions'));
+app.use('/api/clubs', require('./routes/clubs'));
+app.use('/api/players', require('./routes/players'));
+app.use('/api/aggregates', require('./routes/aggregates'));
+app.use('/api/predictions', require('./routes/predictions'));
 
 // Unknown route -> 404
 app.use((req, res, next) => {
