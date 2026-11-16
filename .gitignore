@@ -24,8 +24,6 @@ venv/
 Thumbs.db
 *.log
 
-#data
-data/
-
-#password
-github_user_password.md
+# Data (frozen source files, see data/README.md)
+data/*
+!data/README.md

@@ -19,14 +19,16 @@ const FIELDS = [
   'name',
   'birthDate',
   'position',
+  'subPosition',
   'foot',
   'heightCm',
   'currentValue',
   'contractUntil',
+  'lastSeason',
   'externalIds',
 ];
 const LIST_SELECT =
-  'name position foot heightCm birthDate club currentValue predictedValue contractUntil';
+  'name position subPosition foot heightCm birthDate club currentValue predictedValue contractUntil lastSeason';
 const SORT_FIELDS = ['name', 'position', 'birthDate', 'currentValue', 'predictedValue'];
 
 // Creating a player needs the club of the URL (req.club).

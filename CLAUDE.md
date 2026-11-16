@@ -113,18 +113,53 @@ footboard/
 
 ## 6. Fuentes de datos
 
-| Fuente | Qué aporta | Formato | Granularidad |
-| --- | --- | --- | --- |
-| Transfermarkt (dataset de dcaribou) | Jugadores, clubes, competiciones, valoraciones históricas, traspasos | CSV | Perfil estático + serie temporal |
-| FBref (vía soccerdata) | Estadísticas de rendimiento por temporada | CSV extraído | Jugador × temporada |
+### Decidida y descargada
 
-Ambas se descargan una vez y se **congelan** en `data/`. No depender de "la última
-versión disponible" de nada: el proyecto debe ser reproducible.
+**Transfermarkt** (dataset de dcaribou, vía Kaggle). Fuente principal, en
+`data/data_from_transfermarkt/`. Foto de septiembre de 2026; las actualizaciones
+automáticas del dataset están pausadas desde julio de 2026, lo que para el
+proyecto es una ventaja: versión estable y reproducible.
 
-Las dos fuentes **no comparten identificadores**. Hace falta una tabla de
-equivalencias de nombres de jugador y club, construida con normalización de
-cadenas y revisión manual de los no emparejados. Es la tarea con más riesgo de
-desbordarse: empezar por una sola liga.
+| Fichero | Contenido | Filas |
+| --- | --- | --- |
+| `competitions.csv` | Ligas y torneos | 65 |
+| `clubs.csv` | Clubes y su liga | 796 |
+| `players.csv` | Perfiles, posición, valor actual | 50.149 |
+| `player_valuations.csv` | Histórico de valoraciones | 656.301 |
+| `appearances.csv` | Una fila por jugador y partido | 1.894.350 |
+
+**Limitación importante:** `appearances.csv` solo trae minutos, goles,
+asistencias y tarjetas. **Ni tiros, ni pases, ni entradas.** Con solo esta
+fuente, el modelo apenas distingue a un central de un portero y acabaría
+prediciendo casi por edad, posición y liga. Los campos `shots`,
+`passesCompleted` y `tackles` de `SeasonStat` quedan vacíos.
+
+### Siguiente: FBref
+
+Deja de ser un extra y pasa a ser **necesaria** por la limitación anterior. Es lo
+que hace que el rendimiento pese de verdad en la predicción.
+
+No se descarga como fichero: se extrae con la librería `soccerdata` de Python
+(`pip install soccerdata`), llamando a `read_player_season_stats` con
+`stat_type` en `shooting`, `passing` y `defense`, y juntando los resultados.
+
+Es un *scraper*, así que se extrae una vez y se congelan los CSV en `data/`.
+Tiene límite de peticiones; la primera extracción de cinco ligas tarda.
+
+**No comparte identificadores con Transfermarkt.** Hace falta una tabla de
+equivalencias de nombres de jugador y club, con normalización de cadenas y
+revisión manual de lo que no case. Es la tarea con más riesgo de desbordarse:
+**empezar emparejando solo LaLiga.**
+
+### Candidatas, no decididas
+
+- **StatsBomb** — eventos con coordenadas. Para métricas espaciales y para la
+  simulación en tiempo real (14.3). No alimenta el modelo de valor.
+- **Football-Data** — resultados y cuotas de casas de apuestas. Serviría de
+  *baseline* para un modelo de predicción de resultado.
+
+Todas las fuentes se congelan en `data/`, que está en `.gitignore`. Documentar en
+`data/README.md` cómo obtenerlas.
 
 ---
 
@@ -154,12 +189,14 @@ externalIds   { transfermarkt: String, fbref: String }
 name           String, required, trim
 birthDate      Date
 position       String, enum: ['GK','DF','MF','FW'], required
+subPosition    String                  // una de las 13 de Transfermarkt ("Centre-Forward")
 foot           String, enum: ['left','right','both']
 heightCm       Number, min: 140, max: 220
 club           ObjectId → Club
 currentValue   Number, min: 0          // euros, desnormalizado para listar rápido
 predictedValue Number, min: 0          // euros, lo escribe el scoring offline (no la API)
 contractUntil  Date
+lastSeason     Number, min: 1900       // año de inicio de la última temporada jugada
 externalIds    { transfermarkt: String, fbref: String }
 ```
 
@@ -199,22 +236,54 @@ tackles        Number, min: 0
 
 ## 8. ETL
 
-Scripts en `api/scripts/etl/`, uno por fuente, ejecutables de forma
+Scripts en `api/scripts/etl/`, uno por entidad, ejecutables de forma
 independiente y en este orden: competiciones → clubes → jugadores → valoraciones
-→ estadísticas.
+→ estadísticas. Escriben **directamente con Mongoose**, no por la API (ver 14.2).
 
-Reglas:
-- **Idempotente**: cargar con `updateOne` + `upsert: true` sobre la clave natural
-  (el id externo), nunca con `insertMany` a ciegas. Relanzar el ETL no debe
-  duplicar nada.
-- Procesar en **lotes** con `bulkWrite`. Son decenas de miles de documentos.
-- Normalizar al cargar: valores de mercado siempre en euros enteros, fechas a
-  `Date`, posiciones al `enum` de cuatro valores, nombres sin acentos ni dobles
-  espacios para el emparejamiento.
-- Registrar un informe al terminar: cuántos documentos insertados, actualizados y
-  **cuántos no se pudieron emparejar entre fuentes**. Ese último número hay que
-  revisarlo a mano.
-- Reutilizar los modelos de Mongoose, no escribir consultas crudas.
+### Decisiones de alcance (confirmadas)
+
+| Decisión | Valor |
+| --- | --- |
+| Ligas | Las cinco grandes: `ES1`, `GB1`, `IT1`, `L1`, `FR1` |
+| Jugadores | Solo los que militan **hoy** en una liga cargada |
+| `SeasonStat` | Solo competiciones de liga doméstica, ni copas ni UEFA |
+| Base previa | **Vaciar** antes de la primera carga (el seed la contaminaría) |
+
+Volumen esperado: ~176 clubes, ~11.813 jugadores (~3.012 con valor de mercado),
+~191.754 valoraciones y ~27.697 filas de `SeasonStat`.
+
+**Validar primero con LaLiga sola** (33 clubes, 2.278 jugadores) y ampliar
+después. Si algo está mal se ve en dos minutos en vez de media hora.
+
+### Campos nuevos que exige el ETL
+
+- `Player.lastSeason` (Number) — solo 748 de los 2.278 jugadores de LaLiga siguen
+  en activo. Los retirados **sí sirven para entrenar** el modelo, pero **no deben
+  aparecer** en el Explorador. Se cargan todos y se filtra en la vista.
+- `Player.subPosition` (String) — los 13 valores de Transfermarkt. Distingue un
+  extremo de un delantero centro, y eso es señal real para el modelo.
+
+### Normalización al cargar
+
+- Posiciones al `enum` de cuatro valores: `Goalkeeper`→GK, `Defender`→DF,
+  `Midfield`→MF, `Attack`→FW. Los 586 con posición `Missing` **no se cargan**.
+- Alturas fuera de 140–220 cm se descartan (hay 13 absurdas, una de 17 cm).
+- Nombres con `trim` y dobles espacios colapsados.
+- Fechas a `Date`; valores de mercado en euros enteros.
+- `Competition.name` no existe legible en el CSV (solo un *slug* tipo `laliga`):
+  **mapa manual** para las cinco ligas.
+- `Club.country` se deriva del `country_name` de su competición.
+- `SeasonStat` se obtiene agregando `appearances.csv` por
+  `(player_id, season, competition_id)`, uniendo con `games.csv` para sacar la
+  temporada. Formato `YYYY-YY`.
+
+### Reglas técnicas
+
+- **Idempotente**: `updateOne` + `upsert: true` sobre el id externo de
+  Transfermarkt, nunca `insertMany` a ciegas.
+- Procesar en **lotes** con `bulkWrite`.
+- Informe final: insertados, actualizados y **descartados por cada motivo**.
+- Reutilizar los modelos de Mongoose, no consultas crudas.
 
 ---
 
@@ -404,8 +473,29 @@ Render con auto-deploy desde `main`. Dos fallos que cuestan una tarde:
 
 ## 13. Estado actual
 
-Tandas 1 y 2 fusionadas en `main` (PR #1). Tanda 3 en la rama
-`feat/tanda-3-seed`: parte A commiteada; parte B (frontend) sin commit.
+Tandas 1 y 2 fusionadas en `main` (PR #1); tanda 3 (seed + frontend) fusionada
+en `main` (PR #2). Tanda 4 (ETL de Transfermarkt) en la rama `feat/tanda-4-etl`, sin commit.
+
+**Hecho (tanda 4, ETL):**
+- `api/scripts/etl/`: `01-competitions` → `05-stats`, `run-all.js`, `wipe.js` y `lib/` (`common.js`: flags, conexión, CSV en streaming con `csv-parse`, clase `Loader`; `normalize.js`: funciones puras). Scripts npm `etl` (`-- --leagues=ES1,...`, ES1 por defecto) y `etl:wipe` (`-- --force`).
+- Probado con LaLiga contra `footboard_test` (Atlas): 1 competición, 33 clubes, 2.272 jugadores, 39.201 valoraciones y 5.070 `SeasonStat`, en ~115 s. Relanzado: 0 insertados (idempotente). Datos comprobados a mano (Lamine Yamal 200 M€, Mbappé 31 goles en 2024-25, 748 jugadores con `lastSeason` ≥ 2025).
+- `api/test/etl.test.js`: 5 pruebas unitarias de `normalize.js`. `npm test`: 27/27.
+- `data/README.md`: de dónde sale cada CSV y cómo lanzar el ETL.
+- **Aún no ejecutado contra `footboard`** (la base real sigue con el seed).
+
+**Decisiones tomadas en la tanda 4:**
+- Cada script obtiene los `_id` de los padres consultando Mongo (mapa id de Transfermarkt → `_id`), así se pueden lanzar sueltos.
+- `bulkWrite` no ejecuta validadores: cada documento pasa por `new Model(doc).validateSync()` antes; los inválidos se descartan con motivo `validation`.
+- Upsert con `$set` y claves con punto (`externalIds.transfermarkt`), para no pisar `externalIds.fbref` cuando se cargue FBref.
+- Valoraciones duplicadas (mismo jugador y día) en el CSV: se queda la primera.
+- `SeasonStat` solo suma partidos con `competition_type = domestic_league` de las ligas cargadas; la temporada sale de `games.season` ("2023" → "2023-24"). Tarjetas no se guardan (el modelo no tiene campo).
+- Altura fuera de 140–220: se anula el campo pero el jugador se carga (aparece como *nota* en el informe, no como descarte).
+- `predictedValue` no se toca: el Explorador se quedará vacío hasta que exista el modelo (decisión del usuario).
+- Alcance «club actual en una liga cargada»: jugadores históricos que acabaron en otra liga (p. ej. Messi) no entran.
+
+**Hecho (preparación del ETL):**
+- `Player` tiene dos campos nuevos: `subPosition` (String) y `lastSeason` (Number, índice). Se pueden enviar en POST/PUT y salen en los listados. El seed no los rellena.
+- Pendiente: el filtro del Explorador que oculta a los retirados (por `lastSeason`) se decide al cargar los datos reales.
 
 **Hecho (tanda 3, parte B: frontend):**
 - `web/`: React 19 + Vite 8 + react-router-dom 7 + axios + Recharts 3. `npm run dev` (puerto 5173, el que admite el CORS de la API) y `npm run build`.
@@ -443,7 +533,7 @@ Tandas 1 y 2 fusionadas en `main` (PR #1). Tanda 3 en la rama
 - `api/middleware/filters.js`: `parseFilters` (parsea una vez a `req.filters`), `buildSort` (lista blanca por recurso), `buildPlayerFilter` y `pageResponse`.
 - `router.param` en `competitionId`, `clubId` y `playerId`: carga el recurso una vez (`req.competition`, `req.club`, `req.player`) y devuelve 404 si no pertenece al padre de la URL.
 - `/api/predictions/value` es un stub: devuelve `{ predictedValue: 10000000, shapValues: {}, stub: true }`.
-- Pruebas de integración en `api/test/api.test.js` (22 casos, `npm test`). Pasan contra un `mongod` temporal; **no se han podido ejecutar contra Atlas** (ver pendiente).
+- Pruebas de integración en `api/test/api.test.js` (22 casos, `npm test`). Pasan contra un `mongod` temporal y, desde el 15-11-2026, contra la base `_test` de Atlas.
 
 **Decisiones tomadas en la tanda 2:**
 - Nuevo campo `Player.predictedValue` (euros). Sin él no hay residuos que servir. Lo escribirá el job de scoring offline; la API **no** lo acepta en POST/PUT.
@@ -478,10 +568,82 @@ Tandas 1 y 2 fusionadas en `main` (PR #1). Tanda 3 en la rama
 - `data/` está en `.gitignore`: las muestras congeladas **no se versionan**. Hay que documentar en el README cómo obtenerlas para que el proyecto siga siendo reproducible.
 
 **Pendiente:**
-- ETL, frontend y servicio ML.
-- `docker compose` solo puede construir `api`: faltan `web/package.json` y `ml/serve.py` con el modelo.
-- **Credenciales de Atlas**: `MONGODB_URI` ya funciona (base `footboard`). `MONGODB_URI_TEST` no se ha vuelto a probar desde el `bad auth` de la tanda 2.
-- Tanda 3, parte B.
+- ETL, resto del frontend (ficha, comparador, visión general, selección por arrastre, CSV) y servicio ML.
+- `docker compose` aún no construye `ml`: falta `ml/serve.py` con el modelo.
+- **Credenciales de Atlas**: `MONGODB_URI` (base `footboard`) y `MONGODB_URI_TEST` funcionan; las 22 pruebas pasan contra Atlas (15-11-2026).
+- ETL: vaciar `footboard` y cargar LaLiga, después las cinco ligas (`npm run etl:wipe -- --force` y `npm run etl -- --leagues=...`).
+- Extracción de FBref con `soccerdata` (sección 6) y tabla de equivalencias con Transfermarkt.
+- Requisitos de la tutoría (sección 14): JWT (obligatorio), script de usuario simulado por la API y, como extra, simulación de partido en tiempo real.
 
 Pendiente de confirmar con el profesor: que la temática de fútbol está aprobada
-por escrito, y si hay requisito de autenticación.
+por escrito. (La autenticación ya está confirmada: JWT obligatorio, ver 14.1.)
+
+---
+
+## 14. Requisitos añadidos tras la tutoría (29-10-2026)
+
+Tres peticiones del profesor que no estaban en el enunciado original.
+
+### 14.1 Autenticación con JWT — obligatorio
+
+Token firmado con **caducidad determinada**. Flujo estándar:
+
+- `POST /api/auth/register` y `POST /api/auth/login` devuelven el token
+- El cliente lo envía en cada petición: `Authorization: Bearer <token>`
+- Un middleware lo verifica antes de las rutas protegidas y responde **401**
+  si falta, es inválido o ha caducado
+
+Implicaciones:
+- Modelo `User` nuevo, con contraseña hasheada con `bcrypt`. **Nunca en claro.**
+- Librería `jsonwebtoken`. El secreto va en el `.env`, no en el código.
+- El cliente axios del frontend debe adjuntar el token.
+- El script de usuario simulado (14.2) debe autenticarse primero.
+
+Decidir qué rutas se protegen: como mínimo las de escritura (POST, PUT, DELETE).
+
+### 14.2 Datos que entran por la API — confirmado el alcance
+
+El profesor pidió que los datos entraran por la API y no directos a Mongo.
+**Consultado y aceptado el enfoque mixto.** Son dos scripts distintos:
+
+| Script | Vía | Para qué |
+| --- | --- | --- |
+| ETL de carga masiva | Mongoose directo, `bulkWrite` | Los ~192.000 registros reales |
+| Usuario simulado | axios → endpoints de la API | Demostrar que la API es usable |
+
+Motivo: 191.754 valoraciones una a una por HTTP serían horas, y el beneficio
+(ejercitar los endpoints) se consigue igual con un subconjunto.
+
+El script simulado debe: autenticarse con JWT, crear, consultar con filtros,
+modificar y borrar. Que use **datos claramente ficticios** y limpie lo que ha
+creado al terminar, para no mezclarlos con los reales de Transfermarkt.
+
+### 14.3 Procesamiento en tiempo real — "extra importante"
+
+El enunciado original giraba en torno a sensores que emiten continuamente. Como
+el fútbol no da eso de forma natural, el profesor sugirió **simularlo**: un
+script que reproduce los eventos de un partido ya jugado respetando su orden
+temporal, y los va metiendo por la API como si llegaran en directo.
+
+No es un pilar del proyecto, pero inclina la nota y es lo que más acerca la
+propuesta al espíritu del enunciado. **Prioridad: por encima de la fase de
+vídeo, por debajo del ETL y del modelo principal.**
+
+Si se aborda, hace falta:
+- Modelo `MatchEvent` (minuto, tipo, jugador, equipo, coordenadas)
+- Endpoints para recibirlos
+- Script reproductor con factor de aceleración (90 min → 90 s en la demo)
+- Que el frontend se entere sin recargar: **WebSockets** (Socket.IO) antes que
+  *polling*, porque es lo que de verdad parece tiempo real
+- Una vista en vivo: campo con los eventos apareciendo y marcador
+
+**Idea candidata, no decidida:** un segundo modelo que prediga el resultado del
+partido en vivo a partir del estado (marcador, minuto, tiros, tarjetas,
+expulsiones) y actualice la probabilidad en pantalla conforme llegan eventos.
+Es un modelo distinto del de valor de mercado, aunque también XGBoost. Se puede
+entrenar con eventos históricos reconstruyendo "en el minuto 60 iba 1-0 y acabó
+2-1". Si se usa Football-Data, sus cuotas sirven de *baseline* para comparar.
+
+Fuente de datos candidata para esto: eventos de StatsBomb, o el dataset de tiros
+ya preparado en Hugging Face (`statsbomb-open-data-shots`), que trae coordenadas,
+distancia, ángulo, parte del cuerpo y xG, con los splits hechos.
