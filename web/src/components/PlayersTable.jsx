@@ -11,8 +11,8 @@ const COLUMNS = [
   { key: 'age', label: 'Edad', value: (p) => ageFrom(p.birthDate), numeric: true },
   { key: 'club', label: 'Club', value: (p) => (p.club ? p.club.name : '') },
   { key: 'currentValue', label: 'Valor real', value: (p) => p.currentValue, numeric: true, format: formatEuros },
-  { key: 'predictedValue', label: 'Valor predicho', value: (p) => p.predictedValue, numeric: true, format: formatEuros },
-  { key: 'residual', label: 'Residuo', value: (p) => p.residual, numeric: true, format: formatResidual },
+  { key: 'predictedValue', label: 'Referencia por comparables', value: (p) => p.predictedValue, numeric: true, format: formatEuros },
+  { key: 'residual', label: 'Diferencia', value: (p) => p.residual, numeric: true, format: formatResidual },
 ];
 
 function compare(a, b) {
@@ -38,7 +38,7 @@ export default function PlayersTable({ players }) {
     );
 
   return (
-    <div className="table-wrap">
+    <div className="table-wrap" role="region" aria-label="Tabla de jugadores" tabIndex={0}>
       <table className="players-table">
         <thead>
           <tr>
@@ -71,9 +71,9 @@ export default function PlayersTable({ players }) {
                   );
                 }
                 if (c.key === 'residual') {
+                  const tone = value > 0 ? ' value-under' : value < 0 ? ' value-over' : '';
                   return (
-                    <td key={c.key} className="num">
-                      <span className={`swatch ${value > 0 ? 'swatch-under' : 'swatch-over'}`} aria-hidden="true" />
+                    <td key={c.key} className={`num${tone}`}>
                       {c.format(value)}
                     </td>
                   );

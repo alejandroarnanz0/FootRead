@@ -1,4 +1,8 @@
-// Explicit loading and error states. Every view uses them: nothing fails silently.
+import Button from './Button.jsx';
+
+export function Notice({ children }) {
+  return <p className="notice">{children}</p>;
+}
 
 export function Loading({ children = 'Cargando…' }) {
   return (
@@ -15,9 +19,9 @@ export function ErrorMessage({ error, onRetry, title = 'No se han podido cargar 
       <strong>{title}</strong>
       <span>{error.message}</span>
       {onRetry && (
-        <button type="button" onClick={onRetry}>
+        <Button onClick={onRetry}>
           Reintentar
-        </button>
+        </Button>
       )}
     </div>
   );

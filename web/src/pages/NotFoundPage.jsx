@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom';
+import PageHeader from '../components/PageHeader.jsx';
 
 export default function NotFoundPage() {
   return (
     <div className="page">
-      <header className="page-head">
-        <h1>Página no encontrada</h1>
-      </header>
+      <PageHeader title="Página no encontrada" />
       <Link to="/">Volver al Explorador</Link>
     </div>
   );
