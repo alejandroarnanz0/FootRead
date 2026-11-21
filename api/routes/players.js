@@ -9,6 +9,7 @@ const pick = require('../utils/pick');
 const { parseFilters, buildSort, buildPlayerFilter, pageResponse } = require('../middleware/filters');
 const valuationsRouter = require('./valuations');
 const statsRouter = require('./stats');
+const comparablesRouter = require('./comparables');
 
 // Mounted twice: under .../clubs/:clubId/players and /api/players.
 const router = express.Router({ mergeParams: true });
@@ -112,5 +113,6 @@ router
 
 router.use('/:playerId/valuations', valuationsRouter);
 router.use('/:playerId/stats', statsRouter);
+router.use('/:playerId/comparables', comparablesRouter);
 
 module.exports = router;
