@@ -38,6 +38,56 @@ El ETL es idempotente: relanzarlo actualiza, no duplica. Cada paso imprime cuán
 documentos ha insertado, actualizado y descartado (y por qué). Los pasos se pueden
 lanzar sueltos (`node scripts/etl/03-players.js --leagues=ES1`), en orden 01 → 05.
 
+## StatsBomb — tiros para entrenar el xG: `statsbomb_shots/`
+
+- **Origen:** dataset de Hugging Face `ClementeH/statsbomb-open-data-shots`, derivado de
+  StatsBomb Open Data. Licencia **CC BY-SA 4.0**.
+- **Ficheros:** `train.parquet`, `validation.parquet`, `test.parquet` (88.023 tiros en total).
+  Sus splits no se usan: el pipeline de `ml/` reparte de nuevo por partido.
+- **Cómo obtenerlo:**
+  ```
+  B=https://huggingface.co/datasets/ClementeH/statsbomb-open-data-shots/resolve/main/data
+  for s in train validation test; do
+    curl -L -o data/statsbomb_shots/$s.parquet "$B/$s-00000-of-00001.parquet"
+  done
+  ```
+- `shots.csv` lo **genera** el pipeline de `ml/` (todos los tiros, con su split y con la
+  distancia y el ángulo calculados por `ml/BaselineModel/features.py`). Lo lee `npm run etl:shots`.
+
+## StatsBomb Open Data — partidos de la demo: `statsbomb_open_data/`
+
+- **Origen:** repositorio `github.com/statsbomb/open-data` (rama `master`), descargado el
+  20-11-2026. Licencia **CC BY-SA 4.0**; StatsBomb exige citar la fuente en cualquier
+  publicación o análisis derivado (pie del dashboard y memoria).
+- **Contenido:**
+
+  | Ruta | Qué es |
+  | --- | --- |
+  | `competitions.json` | Catálogo de competiciones y temporadas |
+  | `matches/43/106.json` | Partidos del Mundial 2022 |
+  | `matches/16/37.json` | Champions League 2004/05 |
+  | `matches/11/27.json` | La Liga 2015/16 |
+  | `events/3869685.json` | Argentina 3-3 Francia, final del Mundial 2022 (con prórroga y penaltis) |
+  | `events/2302764.json` | AC Milan 3-3 Liverpool, final de Champions 2005 (con prórroga y penaltis) |
+  | `events/3825700.json` | Real Madrid 10-2 Rayo Vallecano, La Liga 2015/16 |
+
+  Los tres `match_id` son los de `demo_matches` en `ml/config.yaml`.
+- **Cómo obtenerlo:**
+  ```
+  B=https://raw.githubusercontent.com/statsbomb/open-data/master/data
+  curl -o data/statsbomb_open_data/competitions.json $B/competitions.json
+  for cs in 43/106 16/37 11/27; do
+    mkdir -p data/statsbomb_open_data/matches/${cs%/*}
+    curl -o data/statsbomb_open_data/matches/$cs.json $B/matches/$cs.json
+  done
+  for id in 3869685 2302764 3825700; do
+    curl -o data/statsbomb_open_data/events/$id.json $B/events/$id.json
+  done
+  ```
+- `npm run etl:matches` (desde `api/`) carga los partidos en `Match` y marca como
+  `available` los que tienen su fichero de eventos. `api/scripts/replay.js` reproduce
+  `events/<match_id>.json` por la API.
+
 ## FBref
 
-Pendiente. Se extraerá con `soccerdata` y se congelará aquí (ver CLAUDE.md §6).
+Descartado (ver CLAUDE.md §6 y §15).

@@ -1,0 +1,50 @@
+# Every tunable of the xG pipeline. Each run copies this file into its
+# OUTPUT_AI/<run>/ folder, so an old run says exactly how it was made.
+seed: 42
+
+data:
+  path: /data/statsbomb_shots        # parquet files (inside the Docker container)
+  split: {train: 0.8, validation: 0.1, test: 0.1}   # of matches, not of shots
+  exclude_penalties: true            # they get the empirical conversion rate instead
+  export_shots_csv: true             # write shots.csv (with this run's split) for the Node ETL
+
+# Matches replayed live in the demo: always in test. Missing id -> the run fails.
+demo_matches:
+  - {match_id: 3869685, label: "Argentina vs France, FIFA World Cup 2022 final"}
+  - {match_id: 2302764, label: "AC Milan vs Liverpool, Champions League final 2005"}
+  - {match_id: 3825700, label: "Real Madrid vs Rayo Vallecano, La Liga 2015-16"}
+
+model:
+  n_estimators: 2000
+  learning_rate: 0.03
+  max_depth: 4
+  min_child_weight: 5
+  subsample: 0.8
+  colsample_bytree: 0.8
+  early_stopping_rounds: 30
+
+# Optuna search: ml/run.sh train --tune (search, then train with the best).
+# Scored by CV over the train matches only; never touches validation or test,
+# never edits this file: it writes OUTPUT_AI/tuning_<date>/best_config.yaml.
+# Each entry: [low, high] or [low, high, log].
+# Parameters not listed keep the value in `model:` above.
+tuning:
+  n_trials: 10
+  timeout_minutes: 45                # stops earlier if time runs out
+  cv_folds: 5                        # GroupKFold by match, inside train
+  search_space:
+    learning_rate: [0.01, 0.2, log]
+    max_depth: [2, 8]
+    min_child_weight: [1, 50, log]
+    subsample: [0.5, 1.0]
+    colsample_bytree: [0.4, 1.0]
+    reg_lambda: [0.001, 10, log]
+    gamma: [0, 5]
+
+calibration:
+  method: sigmoid                   # isotonic | sigmoid | none
+
+evaluation:
+  bootstrap_iterations: 1000         # resampling matches, not shots
+  worst_predictions: 50
+  shap_sample: 2000                  # test shots used for SHAP plots
