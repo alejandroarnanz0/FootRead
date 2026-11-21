@@ -26,5 +26,7 @@ services:
 
   ml:
     build: ./ml
+    environment:
+      MODEL_RUN: ${MODEL_RUN:-}
     ports:
       - "8000:8000"

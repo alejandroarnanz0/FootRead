@@ -9,6 +9,7 @@ const pick = require('../utils/pick');
 const { parseFilters, buildSort, buildPlayerFilter, pageResponse } = require('../middleware/filters');
 const valuationsRouter = require('./valuations');
 const statsRouter = require('./stats');
+const comparablesRouter = require('./comparables');
 
 // Mounted twice: under .../clubs/:clubId/players and /api/players.
 const router = express.Router({ mergeParams: true });
@@ -19,14 +20,16 @@ const FIELDS = [
   'name',
   'birthDate',
   'position',
+  'subPosition',
   'foot',
   'heightCm',
   'currentValue',
   'contractUntil',
+  'lastSeason',
   'externalIds',
 ];
 const LIST_SELECT =
-  'name position foot heightCm birthDate club currentValue predictedValue contractUntil';
+  'name position subPosition foot heightCm birthDate club currentValue predictedValue contractUntil lastSeason';
 const SORT_FIELDS = ['name', 'position', 'birthDate', 'currentValue', 'predictedValue'];
 
 // Creating a player needs the club of the URL (req.club).
@@ -110,5 +113,6 @@ router
 
 router.use('/:playerId/valuations', valuationsRouter);
 router.use('/:playerId/stats', statsRouter);
+router.use('/:playerId/comparables', comparablesRouter);
 
 module.exports = router;

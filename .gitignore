@@ -24,8 +24,13 @@ venv/
 Thumbs.db
 *.log
 
-#data
-data/
+# Data (frozen source files, see data/README.md)
+data/*
+!data/README.md
 
-#password
-github_user_password.md
+# Generated data explorers (ml/tools/explore_dataset/explore.py), embed the data
+ml/tools/explore_dataset/output/
+
+# ML runs: one folder per training run (models, metrics, figures). Not versioned;
+# the run chosen for serving is promoted explicitly.
+ml/OUTPUT_AI/

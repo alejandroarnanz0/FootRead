@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+  :root {
+    color-scheme: light; --is-dark: 0;
+    --page: #f9f9f7; --surface: #fcfcfb; --surface-2: #f3f3f0; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.1);
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+    --other: #898781;
+    --seq: #cde2fb,#b7d3f6,#9ec5f4,#86b6ef,#6da7ec,#5598e7,#3987e5,#2a78d6,#256abf,#1c5cab,#184f95,#104281,#0d366b;
+    --grass-a: #e9f0e6; --grass-b: #e2eadf; --pitch-line: rgba(70,92,66,.55); --nogoal: rgba(82,81,78,.38);
+    --hero-a: #0f2a1f; --hero-b: #133a6b; --hero-text: #f4f6f2; --hero-text-2: rgba(244,246,242,.72);
+    --shadow: 0 1px 2px rgba(11,11,11,.04), 0 8px 24px rgba(11,11,11,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark; --is-dark: 1;
+      --page: #0d0d0d; --surface: #1a1a19; --surface-2: #222220; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.1);
+      --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s8:#e66767;
+      --seq: #0d366b,#104281,#184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#5598e7,#6da7ec,#86b6ef,#9ec5f4,#b7d3f6,#cde2fb;
+      --grass-a: #14201a; --grass-b: #18261e; --pitch-line: rgba(220,235,220,.42); --nogoal: rgba(195,194,183,.32);
+      --hero-a: #0b1f17; --hero-b: #0f2c52;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark; --is-dark: 1;
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #222220; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.1);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s8:#e66767;
+    --seq: #0d366b,#104281,#184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#5598e7,#6da7ec,#86b6ef,#9ec5f4,#b7d3f6,#cde2fb;
+    --grass-a: #14201a; --grass-b: #18261e; --pitch-line: rgba(220,235,220,.42); --nogoal: rgba(195,194,183,.32);
+    --hero-a: #0b1f17; --hero-b: #0f2c52;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         -webkit-font-smoothing: antialiased; transition: background-color .3s, color .3s; }
+  main { max-width: 1440px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  /* Hero */
+  .hero { position: relative; overflow: hidden; border-radius: 18px; padding: 28px 28px 24px; color: var(--hero-text);
+          background: radial-gradient(1200px 300px at 85% -20%, rgba(255,255,255,.12), transparent 60%), linear-gradient(120deg, var(--hero-a), var(--hero-b)); }
+  .hero svg.deco { position: absolute; right: -40px; top: -30px; height: 260px; opacity: .16; pointer-events: none; }
+  .hero .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--hero-text-2); font-weight: 600; }
+  .hero h1 { font-size: clamp(26px, 3.4vw, 38px); line-height: 1.1; margin: 6px 0 8px; letter-spacing: -.02em; font-weight: 750; }
+  .hero p { margin: 0; max-width: 680px; color: var(--hero-text-2); }
+  .hero .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; position: relative; }
+  .pill { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+          background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); color: var(--hero-text); }
+  .pill b { font-weight: 750; }
+  .theme-btn { margin-left: auto; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; color: var(--hero-text);
+               background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22); border-radius: 999px; padding: 5px 12px; }
+  .theme-btn:hover { background: rgba(255,255,255,.2); }
+
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 16px; box-shadow: var(--shadow);
+         position: relative; overflow: hidden; animation: rise .5s both; }
+  .kpi .lbl { color: var(--text-2); font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+  .kpi .val { display: block; font-size: 30px; line-height: 1.15; font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .kpi .sub { color: var(--muted); font-size: 12px; margin-top: 2px; min-height: 18px; }
+  .kpi.hero-kpi .val { font-size: 36px; }
+  .kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent, transparent); }
+  .meter { position: relative; height: 6px; border-radius: 3px; background: var(--surface-2); margin-top: 10px; }
+  .meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--s1); transition: width .6s cubic-bezier(.2,.8,.2,1); }
+  .meter em { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--text); border-radius: 1px; transition: left .6s cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* Filters */
+  .filters { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: end; padding: 12px 16px; position: sticky; top: 8px; z-index: 5;
+             background: color-mix(in srgb, var(--surface) 86%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+             border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+  .filters label { display: flex; flex-direction: column; gap: 4px; color: var(--text-2); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .filters label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; letter-spacing: 0; text-transform: none; color: var(--text); padding-bottom: 8px; cursor: pointer; }
+  .filters .count { margin-left: auto; color: var(--text-2); font-size: 13px; padding-bottom: 8px; font-variant-numeric: tabular-nums; }
+  .filters .count b { color: var(--text); }
+  select { font: inherit; font-size: 14px; color: var(--text); background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; min-width: 210px; cursor: pointer; }
+  select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+  input[type=checkbox] { accent-color: var(--s1); width: 16px; height: 16px; }
+
+  /* Cards */
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 12px; min-width: 0; box-shadow: var(--shadow); animation: rise .5s both; }
+  .card.wide { grid-column: 1 / -1; }
+  .card header { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+  .card h2 { font-size: 16px; margin: 0; letter-spacing: -.01em; font-weight: 700; }
+  .card .tag { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+  .muted { color: var(--text-2); margin: 4px 0 0; font-size: 13px; }
+  .chart { height: 360px; transition: opacity .25s; }
+  .pitch { height: 540px; transition: opacity .25s; }
+  .updating .chart, .updating .pitch { opacity: .55; }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 2px; }
+  .seg button { font: inherit; font-size: 12px; font-weight: 600; color: var(--text-2); background: none; border: 0; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
+  .seg button[aria-pressed=true] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .seg button:disabled { opacity: .45; cursor: not-allowed; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 10px; font-size: 12px; color: var(--text-2); }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  .legend .sizes { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+  .legend .sizes i { display: inline-block; border-radius: 50%; border: 1.5px solid var(--text-2); }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  th, td { padding: 9px 12px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--text-2); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  tbody tr { transition: background-color .15s; }
+  tbody tr:hover { background: var(--surface-2); }
+  tr.total td { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--axis); }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
+  .rate-cell { display: inline-flex; align-items: center; gap: 10px; }
+  .rbar { position: relative; width: 120px; height: 8px; border-radius: 4px; background: var(--surface-2); }
+  .rbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+  .rbar em { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--text); border-radius: 1px; }
+  .table-wrap { overflow-x: auto; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
+  @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: minmax(0, 1fr); } select { min-width: 0; width: 100%; } .filters label { flex: 1 1 140px; }
+    .filters { position: static; } .pitch { height: 440px; } .hero { padding: 22px 18px; }
+  }
+  @media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi .val, .kpi.hero-kpi .val { font-size: 24px; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <svg class="deco" viewBox="0 0 80 64" fill="none" stroke="#fff" stroke-width=".6" aria-hidden="true">
+      <rect x="0.5" y="0.5" width="79" height="62"/><rect x="18" y="0.5" width="44" height="18"/><rect x="30" y="0.5" width="20" height="6"/>
+      <path d="M32 18.5 A10 10 0 0 0 48 18.5"/><circle cx="40" cy="12.5" r=".6" fill="#fff"/><path d="M30 62.5 A10 10 0 0 1 50 62.5"/>
+    </svg>
+    <div class="eyebrow">FootRead · Explorador de tiros</div>
+    <h1>__TITLE__</h1>
+    <p>Elige una feature y, si quieres, agrupa por otra columna. Todos los gráficos, el campo y la tabla responden a los filtros.</p>
+    <div class="row">
+      <span class="pill">Parquet <b id="split"></b></span>
+      <span class="pill"><b id="rows-total"></b> tiros en el fichero</span>
+      <span class="pill"><b id="comps-total"></b> competiciones</span>
+      <button class="theme-btn" id="theme" type="button">Cambiar tema</button>
+    </div>
+  </section>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="filters">
+    <label>Feature <select id="feature"></select></label>
+    <label>Agrupar por <select id="group"></select></label>
+    <label>Competición <select id="competition"></select></label>
+    <label class="check"><input type="checkbox" id="nopen" checked> Excluir penaltis</label>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="grid" id="charts">
+    <section class="card">
+      <header>
+        <div><div class="tag">Mapa de tiros</div><h2>Cada tiro, donde se hizo</h2></div>
+        <div class="seg" role="group" aria-label="Color de los puntos">
+          <button type="button" data-color="goal" aria-pressed="true">Gol / no gol</button>
+          <button type="button" data-color="group" aria-pressed="false">Por grupo</button>
+        </div>
+      </header>
+      <p class="muted" id="shots-sub"></p>
+      <div id="shots" class="pitch"></div>
+      <div class="legend" id="shots-legend"></div>
+    </section>
+    <section class="card">
+      <header><div><div class="tag">Zonas</div><h2>Tasa de gol por zona del campo</h2></div></header>
+      <p class="muted">Medio campo de ataque, celdas de 2 × 2 yardas. Celdas con menos de 8 tiros sin color. Pasa el ratón para ver tiros y goles.</p>
+      <div id="pitch" class="pitch"></div>
+    </section>
+    <section class="card">
+      <header><div><div class="tag">Distribución</div><h2 id="dist-title">Distribución</h2></div></header>
+      <p class="muted" id="dist-sub"></p><div id="dist" class="chart"></div>
+    </section>
+    <section class="card">
+      <header><div><div class="tag">Conversión</div><h2 id="rate-title">Tasa de gol</h2></div></header>
+      <p class="muted">Porcentaje de tiros que acaban en gol. Tramos con menos de 20 tiros se ocultan.</p><div id="rate" class="chart"></div>
+    </section>
+    <section class="card wide">
+      <header><div><div class="tag">Tabla</div><h2>Resumen por grupo</h2></div></header>
+      <p class="muted">La barra es la tasa de gol; la marca vertical, el xG medio de StatsBomb.</p>
+      <div class="table-wrap"><table id="table"></table></div>
+    </section>
+  </div>
+  <footer>Datos: StatsBomb Open Data (dataset ClementeH/statsbomb-open-data-shots, CC BY-SA 4.0). Distancia y ángulo «nuestros» calculados con ml/features.py.</footer>
+</main>
+
+<script>
+const DATA = __DATA__;
+const C = DATA.columns;
+const N = DATA.rows;
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const SERIES = () => [1,2,3,4,5,6,7,8].map((i) => css('--s' + i));
+const MAX_GROUPS = 7; // 8th slot is "Otros" in neutral gray, never a generated hue
+const MAX_POINTS = 4000; // shot map sample cap: keeps the SVG fluid on the ~5 MB train split
+const pct = (v) => (v * 100).toFixed(1) + ' %';
+const fmt = (v) => v.toLocaleString('es-ES');
+const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+
+const catCols = Object.keys(C).filter((k) => C[k].kind === 'cat');
+const featCols = Object.keys(C).filter((k) => C[k].kind === 'num' || C[k].kind === 'cat');
+
+function fillSelect(el, options, value) {
+  el.innerHTML = options.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+  el.value = value;
+}
+fillSelect($('feature'), featCols.map((k) => [k, C[k].label]), 'distance');
+fillSelect($('group'), [['', 'Sin agrupar'], ...catCols.map((k) => [k, C[k].label])], '');
+fillSelect($('competition'), [['', 'Todas'], ...C.competition.dict.map((d, i) => [i, d])], '');
+$('split').textContent = DATA.split;
+$('rows-total').textContent = fmt(N);
+$('comps-total').textContent = C.competition.dict.length;
+
+const label = (col, i) => C[col].dict[C[col].values[i]];
+
+// Fixed pseudo-random order (seeded) so the shot-map sample is stable across filters.
+const ORDER = (() => {
+  let s = 20261120;
+  const rnd = () => { s |= 0; s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const a = new Uint32Array(N); for (let i = 0; i < N; i++) a[i] = i;
+  for (let i = N - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+})();
+
+function rowsInScope() {
+  const comp = $('competition').value;
+  const noPen = $('nopen').checked;
+  const penCode = C.shot_type.dict.indexOf('Penalty');
+  const rows = [];
+  for (let i = 0; i < N; i++) {
+    if (comp !== '' && C.competition.values[i] !== +comp) continue;
+    if (noPen && C.shot_type.values[i] === penCode) continue;
+    rows.push(i);
+  }
+  return rows;
+}
+
+// Groups ordered by size; beyond MAX_GROUPS they fold into "Otros".
+function groupsOf(rows, col) {
+  if (!col) return { names: ['Todos'], of: () => 'Todos' };
+  const counts = new Map();
+  for (const i of rows) counts.set(label(col, i), (counts.get(label(col, i)) || 0) + 1);
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_GROUPS).map((e) => e[0]);
+  const keep = new Set(top);
+  const names = counts.size > MAX_GROUPS ? [...top, 'Otros'] : top;
+  return { names, of: (i) => (keep.has(label(col, i)) ? label(col, i) : 'Otros') };
+}
+const colorOf = (names) => {
+  const s = SERIES();
+  return Object.fromEntries(names.map((n, k) => [n, n === 'Otros' ? css('--other') : s[k]]));
+};
+
+function quantile(sorted, q) { return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]; }
+
+// Buckets: numeric -> 20 equal bins between p1 and p99; categorical -> top 15 values.
+function bucketsFor(rows, feat) {
+  const col = C[feat];
+  if (col.kind === 'num') {
+    const vals = rows.map((i) => col.values[i]).filter((v) => v !== null).sort((a, b) => a - b);
+    const lo = quantile(vals, 0.01), hi = quantile(vals, 0.99);
+    const step = (hi - lo) / 20 || 1;
+    const keys = Array.from({ length: 20 }, (_, k) => lo + step * (k + 0.5));
+    const of = (i) => { const v = col.values[i]; if (v === null) return null; return Math.min(19, Math.max(0, Math.floor((v - lo) / step))); };
+    return { keys, of, numeric: true, step };
+  }
+  const counts = new Map();
+  for (const i of rows) counts.set(col.values[i], (counts.get(col.values[i]) || 0) + 1);
+  const codes = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map((e) => e[0]);
+  const pos = new Map(codes.map((c, k) => [c, k]));
+  return { keys: codes.map((c) => col.dict[c]), of: (i) => (pos.has(col.values[i]) ? pos.get(col.values[i]) : null), numeric: false };
+}
+
+function baseLayout(extra = {}) {
+  return {
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { family: FONT, size: 12, color: css('--text-2') },
+    margin: { l: 56, r: 12, t: 8, b: 48 },
+    hoverlabel: { bgcolor: css('--surface'), bordercolor: css('--border'), font: { family: FONT, color: css('--text') } },
+    legend: { orientation: 'h', y: 1.12, x: 0, font: { color: css('--text-2') } },
+    xaxis: { gridcolor: css('--grid'), linecolor: css('--axis'), zeroline: false, automargin: true },
+    yaxis: { gridcolor: css('--grid'), linecolor: css('--axis'), zeroline: false, automargin: true },
+    bargap: 0.15, bargroupgap: 0.05,
+    ...extra,
+  };
+}
+const CONFIG = { displayModeBar: false, responsive: true };
+
+// ---------- Pitch drawing (vertical half pitch, goal at the top) ----------
+// Pitch coords: x 0..120 along the length (120 = goal line), y 0..80 across.
+// Plot coords: horizontal = y, vertical = x. So P(x, y) -> [y, x].
+function pitchShapes(layer) {
+  const line = { color: css('--pitch-line'), width: 1.6 };
+  const rect = (x0, y0, x1, y1) => ({ type: 'rect', x0: y0, x1: y1, y0: x0, y1: x1, line, layer });
+  const arc = (cx, cy, r, a0, a1) => {
+    const pts = [];
+    for (let k = 0; k <= 48; k++) { const a = (a0 + (a1 - a0) * k / 48) * Math.PI / 180; pts.push([cy + r * Math.sin(a), cx + r * Math.cos(a)]); }
+    return { type: 'path', path: 'M' + pts.map((p) => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L'), line, layer };
+  };
+  const dot = (x, y, r) => ({ type: 'circle', x0: y - r, x1: y + r, y0: x - r, y1: x + r, fillcolor: css('--pitch-line'), line: { width: 0 }, layer });
+  const stripes = [];
+  for (let k = 0; k < 10; k++) {
+    stripes.push({ type: 'rect', x0: -4, x1: 84, y0: 60 + 6 * k, y1: 60 + 6 * (k + 1), fillcolor: css(k % 2 ? '--grass-a' : '--grass-b'), line: { width: 0 }, layer: 'below' });
+  }
+  stripes.push({ type: 'rect', x0: -4, x1: 84, y0: 120, y1: 124, fillcolor: css('--grass-a'), line: { width: 0 }, layer: 'below' });
+  // Penalty arc ("D"): circle r=10 around the spot (108, 40), only the part outside the box (x < 102).
+  const dAng = Math.acos(-0.6) * 180 / Math.PI;
+  return [
+    ...stripes,
+    rect(60, 0, 120, 80), rect(102, 18, 120, 62), rect(114, 30, 120, 50),
+    arc(108, 40, 10, dAng, 360 - dAng), arc(60, 40, 10, -90, 90), dot(108, 40, 0.45), dot(60, 40, 0.45),
+    { type: 'rect', x0: 36, x1: 44, y0: 120, y1: 122.2, line: { color: css('--text'), width: 2.5 }, fillcolor: 'rgba(0,0,0,0)', layer: 'above' },
+  ];
+}
+function pitchLayout(shapesLayer, extra = {}) {
+  return baseLayout({
+    margin: { l: 4, r: 4, t: 4, b: 4 }, showlegend: false, hovermode: 'closest',
+    xaxis: { range: [-2, 82], visible: false, fixedrange: true, constrain: 'domain' },
+    yaxis: { range: [58.5, 123], visible: false, fixedrange: true, scaleanchor: 'x', scaleratio: 1 },
+    shapes: pitchShapes(shapesLayer),
+    ...extra,
+  });
+}
+
+// ---------- KPI tiles with count-up ----------
+const KPI_DEFS = [
+  { id: 'shots', l: 'Tiros en el filtro', f: (v) => fmt(Math.round(v)), hero: true, accent: '--s1' },
+  { id: 'goals', l: 'Goles', f: (v) => fmt(Math.round(v)), hero: true, accent: '--s2' },
+  { id: 'rate', l: 'Tasa de gol', f: (v) => pct(v), meter: true },
+  { id: 'xg', l: 'xG medio StatsBomb', f: (v) => pct(v) },
+  { id: 'diff', l: 'Goles − xG StatsBomb', f: (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) },
+  { id: 'dist', l: 'Distancia media', f: (v) => v.toFixed(1) + ' yd' },
+];
+$('kpis').innerHTML = KPI_DEFS.map((d, k) => `<div class="kpi${d.hero ? ' hero-kpi' : ''}" style="animation-delay:${k * 50}ms${d.accent ? `;--accent:var(${d.accent})` : ''}">
+  <span class="lbl">${d.l}</span><span class="val" id="kv-${d.id}">–</span><div class="sub" id="ks-${d.id}"></div>
+  ${d.meter ? '<div class="meter"><i id="km-bar"></i><em id="km-tick"></em></div>' : ''}</div>`).join('');
+const kpiPrev = {};
+function setKpi(id, value, sub) {
+  const def = KPI_DEFS.find((d) => d.id === id); const el = $('kv-' + id);
+  $('ks-' + id).textContent = sub || '';
+  if (value === null || !isFinite(value)) { el.textContent = '–'; kpiPrev[id] = 0; return; }
+  const from = kpiPrev[id] ?? 0; kpiPrev[id] = value;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const t0 = performance.now(), dur = reduce ? 0 : 650;
+  // Timer-driven (not rAF) so it also finishes in background tabs and headless captures.
+  clearTimeout(kpiTimers[id]);
+  const step = () => {
+    const p = dur ? Math.min(1, (performance.now() - t0) / dur) : 1; const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = def.f(from + (value - from) * e);
+    if (p < 1) kpiTimers[id] = setTimeout(step, 16);
+  };
+  step();
+}
+const kpiTimers = {};
+
+let colorBy = 'goal';
+let last = { feat: null, group: null };
+
+function render() {
+  const feat = $('feature').value;
+  const groupCol = $('group').value;
+  const rows = rowsInScope();
+  const g = groupsOf(rows, groupCol);
+  const colors = colorOf(g.names);
+  const b = bucketsFor(rows, feat);
+  const grouped = g.names.length > 1;
+  // Animate only when the axes keep their meaning (same feature and grouping).
+  const animate = last.feat === feat && last.group === groupCol;
+  last = { feat, group: groupCol };
+  const transition = animate ? { duration: 550, easing: 'cubic-in-out' } : { duration: 0 };
+
+  // Count and goals per group x bucket.
+  const cnt = {}, gol = {}, sb = {}, tot = {};
+  for (const n of g.names) { cnt[n] = b.keys.map(() => 0); gol[n] = b.keys.map(() => 0); sb[n] = b.keys.map(() => 0); tot[n] = 0; }
+  for (const i of rows) {
+    const k = b.of(i); const n = g.of(i);
+    tot[n]++;
+    if (k === null) continue;
+    cnt[n][k]++; gol[n][k] += C.goal.values[i]; sb[n][k] += C.xg_statsbomb.values[i] || 0;
+  }
+
+  const x = b.keys;
+  const xTitle = C[feat].label;
+  const hoverX = b.numeric ? `${xTitle}: %{x:.2f}` : '%{x}';
+
+  // 1. Distribution: counts when ungrouped, share of each group when grouped.
+  const distTraces = g.names.map((n) => {
+    const y = grouped ? cnt[n].map((c) => (tot[n] ? c / tot[n] : 0)) : cnt[n];
+    const common = { name: n, x, y, marker: { color: colors[n] }, hovertemplate: `${hoverX}<br>${grouped ? '%{y:.1%} del grupo' : '%{y:,} tiros'}<extra>${n}</extra>` };
+    if (b.numeric && grouped) return { ...common, type: 'scatter', mode: 'lines', line: { color: colors[n], width: 2, shape: 'hvh' } };
+    return { ...common, type: 'bar', marker: { color: colors[n], line: { color: css('--surface'), width: 1 } } };
+  });
+  $('dist-title').textContent = C[feat].label;
+  $('dist-sub').textContent = grouped ? 'Porcentaje de los tiros de cada grupo en cada tramo.' : 'Número de tiros en cada tramo.';
+  Plotly.react('dist', distTraces, baseLayout({
+    barmode: 'group', showlegend: grouped, transition,
+    xaxis: { ...baseLayout().xaxis, title: { text: xTitle } },
+    yaxis: { ...baseLayout().yaxis, title: { text: grouped ? '% del grupo' : 'Tiros' }, tickformat: grouped ? '.0%' : ',' },
+  }), CONFIG);
+
+  // 2. Goal rate along the feature (plus StatsBomb mean xG when ungrouped).
+  const MIN_N = 20;
+  const rateTraces = [];
+  for (const n of g.names) {
+    const y = cnt[n].map((c, k) => (c >= MIN_N ? gol[n][k] / c : null));
+    const custom = cnt[n].map((c, k) => [c, gol[n][k]]);
+    const t = { name: grouped ? n : 'Tasa de gol real', x, y, customdata: custom,
+      hovertemplate: `${hoverX}<br>Tasa de gol: %{y:.1%}<br>%{customdata[1]:,} goles de %{customdata[0]:,} tiros<extra>${grouped ? n : ''}</extra>` };
+    if (b.numeric) rateTraces.push({ ...t, type: 'scatter', mode: 'lines+markers', line: { color: colors[n], width: 2, shape: 'spline', smoothing: 0.6 }, marker: { size: 8, color: colors[n], line: { color: css('--surface'), width: 2 } }, connectgaps: false });
+    else rateTraces.push({ ...t, type: 'bar', marker: { color: colors[n], line: { color: css('--surface'), width: 1 } } });
+  }
+  if (!grouped) {
+    const n = g.names[0];
+    const y = cnt[n].map((c, k) => (c >= MIN_N ? sb[n][k] / c : null));
+    rateTraces.push({ name: 'xG medio de StatsBomb', x, y, type: 'scatter', mode: b.numeric ? 'lines' : 'markers',
+      line: { color: css('--muted'), width: 2, dash: 'dash' }, marker: { size: 10, symbol: 'line-ew-open', color: css('--text-2'), line: { width: 2 } },
+      hovertemplate: `${hoverX}<br>xG medio StatsBomb: %{y:.1%}<extra></extra>` });
+  }
+  $('rate-title').textContent = `Tasa de gol · ${C[feat].label}`;
+  Plotly.react('rate', rateTraces, baseLayout({
+    barmode: 'group', showlegend: true, transition,
+    xaxis: { ...baseLayout().xaxis, title: { text: xTitle } },
+    yaxis: { ...baseLayout().yaxis, title: { text: 'Tasa de gol' }, tickformat: '.0%', rangemode: 'tozero' },
+  }), CONFIG);
+
+  // 3. Goal-rate heatmap on the pitch (attacking half, 2 x 2 yard cells), drawn vertically.
+  const W = 2, X0 = 60, NX = 30, NY = 40;
+  const pc = Array.from({ length: NX }, () => Array(NY).fill(0));
+  const pg = Array.from({ length: NX }, () => Array(NY).fill(0));
+  for (const i of rows) {
+    const xi = Math.floor((C.x.values[i] - X0) / W), yi = Math.floor(C.y.values[i] / W);
+    if (xi < 0 || yi < 0) continue;
+    const cx = Math.min(NX - 1, xi), cy = Math.min(NY - 1, yi);
+    pc[cx][cy]++; pg[cx][cy] += C.goal.values[i];
+  }
+  const z = pc.map((r, xi) => r.map((c, yi) => (c >= 8 ? pg[xi][yi] / c : null)));
+  const hcustom = pc.map((r, xi) => r.map((c, yi) => [c, pg[xi][yi], X0 + W * xi, W * yi]));
+  const seq = css('--seq').split(',').map((s) => s.trim());
+  Plotly.react('pitch', [{
+    type: 'heatmap', z, customdata: hcustom,
+    x: Array.from({ length: NY }, (_, k) => W * (k + 0.5)), y: Array.from({ length: NX }, (_, k) => X0 + W * (k + 0.5)),
+    colorscale: seq.map((c, k) => [k / (seq.length - 1), c]), zmin: 0, zmax: 0.5,
+    colorbar: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.02, yanchor: 'top', len: 0.6, thickness: 10,
+                title: { text: 'Tasa de gol', side: 'top' }, tickformat: '.0%', outlinewidth: 0, tickfont: { color: css('--text-2') } },
+    hovertemplate: 'Celda x %{customdata[2]}, y %{customdata[3]} (2 × 2 yd)<br>Tasa de gol: %{z:.1%}<br>%{customdata[1]} goles de %{customdata[0]} tiros<extra></extra>',
+    xgap: 1, ygap: 1,
+  }], pitchLayout('above', { margin: { l: 4, r: 4, t: 4, b: 70 } }), CONFIG);
+
+  // 4. Shot map: stable random sample, size ~ StatsBomb xG, color = goal or group.
+  const inScope = new Uint8Array(N); for (const i of rows) inScope[i] = 1;
+  const sample = [];
+  for (let k = 0; k < N && sample.length < MAX_POINTS; k++) if (inScope[ORDER[k]]) sample.push(ORDER[k]);
+  const byGroup = colorBy === 'group' && grouped;
+  const segBtn = document.querySelector('.seg [data-color=group]');
+  segBtn.disabled = !grouped;
+  document.querySelectorAll('.seg button').forEach((bt) => bt.setAttribute('aria-pressed', String(bt.dataset.color === (byGroup ? 'group' : 'goal'))));
+  const size = (i) => 5 + Math.sqrt(Math.max(0, C.xg_statsbomb.values[i] || 0)) * 22;
+  const surface = css('--surface');
+  const shotTrace = (ids, name, color, ring, opacity) => ({
+    type: 'scatter', mode: 'markers', name,
+    x: ids.map((i) => C.y.values[i]), y: ids.map((i) => C.x.values[i]),
+    customdata: ids.map((i) => [C.x.values[i], C.y.values[i], C.xg_statsbomb.values[i] || 0, label('outcome', i), label('body_part', i), label('shot_type', i)]),
+    marker: { size: ids.map(size), color, opacity, line: { color: ring, width: 1 } },
+    hovertemplate: '<b>%{customdata[3]}</b> · %{customdata[5]}<br>xG StatsBomb: %{customdata[2]:.2f}<br>%{customdata[4]}<br>x %{customdata[0]:.1f}, y %{customdata[1]:.1f}<extra>' + name + '</extra>',
+  });
+  let shotTraces, legendHtml;
+  if (byGroup) {
+    shotTraces = g.names.map((n) => shotTrace(sample.filter((i) => g.of(i) === n), n, colors[n], surface, 0.8));
+    legendHtml = g.names.map((n) => `<span><span class="dot" style="background:${colors[n]}"></span>${n}</span>`).join('');
+  } else {
+    const miss = sample.filter((i) => !C.goal.values[i]), hit = sample.filter((i) => C.goal.values[i]);
+    shotTraces = [shotTrace(miss, 'No gol', css('--nogoal'), 'rgba(0,0,0,0)', 1), shotTrace(hit, 'Gol', css('--s2'), surface, 0.95)];
+    legendHtml = `<span><span class="dot" style="background:${css('--s2')}"></span>Gol</span><span><span class="dot" style="background:${css('--nogoal')}"></span>No gol</span>`;
+  }
+  legendHtml += `<span class="sizes">Tamaño = xG StatsBomb ${[0.05, 0.3, 0.8].map((v) => `<i style="width:${size0(v)}px;height:${size0(v)}px"></i>`).join('')} <span>0,05 · 0,3 · 0,8</span></span>`;
+  $('shots-legend').innerHTML = legendHtml;
+  $('shots-sub').textContent = sample.length < rows.length
+    ? `Muestra aleatoria fija de ${fmt(sample.length)} de ${fmt(rows.length)} tiros, para que el mapa siga fluido. Los demás gráficos usan todos.`
+    : `Los ${fmt(rows.length)} tiros del filtro.`;
+  Plotly.react('shots', shotTraces, pitchLayout('below'), CONFIG);
+
+  // 5. Summary table per group.
+  const stats = g.names.map((n) => ({ n, shots: 0, goals: 0, sb: 0, dist: 0 }));
+  const idx = Object.fromEntries(g.names.map((n, k) => [n, k]));
+  for (const i of rows) {
+    const s = stats[idx[g.of(i)]];
+    s.shots++; s.goals += C.goal.values[i]; s.sb += C.xg_statsbomb.values[i] || 0; s.dist += C.distance.values[i] || 0;
+  }
+  const all = stats.reduce((a, s) => ({ shots: a.shots + s.shots, goals: a.goals + s.goals, sb: a.sb + s.sb, dist: a.dist + s.dist }), { shots: 0, goals: 0, sb: 0, dist: 0 });
+  const scale = Math.max(0.05, ...stats.map((s) => (s.shots ? Math.max(s.goals, s.sb) / s.shots : 0))) * 1.1;
+  const bar = (s, color) => s.shots
+    ? `<span class="rate-cell"><span class="rbar"><i style="width:${(s.goals / s.shots / scale * 100).toFixed(1)}%;background:${color}"></i><em style="left:${(s.sb / s.shots / scale * 100).toFixed(1)}%"></em></span>${pct(s.goals / s.shots)}</span>`
+    : '–';
+  const rowHtml = (name, s, swatch, cls = '') => `<tr class="${cls}"><td>${swatch ? `<span class="swatch" style="background:${swatch}"></span>` : ''}${name}</td><td>${fmt(s.shots)}</td><td>${fmt(s.goals)}</td><td>${bar(s, swatch || css('--s1'))}</td><td>${s.shots ? pct(s.sb / s.shots) : '–'}</td><td>${s.shots ? (s.dist / s.shots).toFixed(1) : '–'}</td></tr>`;
+  $('table').innerHTML =
+    `<thead><tr><th>${groupCol ? C[groupCol].label : 'Grupo'}</th><th>Tiros</th><th>Goles</th><th>Tasa de gol</th><th>xG medio StatsBomb</th><th>Distancia media</th></tr></thead><tbody>` +
+    stats.map((s) => rowHtml(s.n, s, grouped ? colors[s.n] : null)).join('') +
+    (grouped ? rowHtml('Total', all, null, 'total') : '') + '</tbody>';
+
+  // 6. KPIs
+  const rate = all.shots ? all.goals / all.shots : null, xg = all.shots ? all.sb / all.shots : null;
+  setKpi('shots', all.shots, `${pct(all.shots / N)} del parquet`);
+  setKpi('goals', all.goals, all.goals ? `1 gol cada ${(all.shots / all.goals).toFixed(1)} tiros` : '');
+  setKpi('rate', rate, 'Marca: xG medio StatsBomb');
+  setKpi('xg', xg, `Suma: ${all.sb.toLocaleString('es-ES', { maximumFractionDigits: 1 })} xG`);
+  setKpi('diff', all.shots ? all.goals - all.sb : null, 'Goles reales menos esperados');
+  setKpi('dist', all.shots ? all.dist / all.shots : null, 'Calculada con ml/features.py');
+  const mScale = Math.max(0.2, (rate || 0), (xg || 0)) * 1.25;
+  $('km-bar').style.width = ((rate || 0) / mScale * 100) + '%';
+  $('km-tick').style.left = ((xg || 0) / mScale * 100) + '%';
+  $('count').innerHTML = `<b>${fmt(all.shots)}</b> de ${fmt(N)} tiros`;
+}
+function size0(v) { return Math.round(5 + Math.sqrt(v) * 22); }
+
+// Re-render on the next frames so the "updating" fade is visible before heavy work.
+let pending = false;
+function schedule() {
+  if (pending) return; pending = true;
+  $('charts').classList.add('updating');
+  requestAnimationFrame(() => setTimeout(() => { pending = false; render(); $('charts').classList.remove('updating'); }, 0));
+}
+
+for (const id of ['feature', 'group', 'competition', 'nopen']) $(id).addEventListener('change', schedule);
+document.querySelectorAll('.seg button').forEach((bt) => bt.addEventListener('click', () => { if (!bt.disabled) { colorBy = bt.dataset.color; schedule(); } }));
+$('group').addEventListener('change', () => { if ($('group').value) colorBy = 'group'; else colorBy = 'goal'; });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', schedule);
+$('theme').addEventListener('click', () => {
+  const dark = css('--is-dark') === '1';
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('footread-explore-theme', document.documentElement.dataset.theme); } catch (e) {}
+  last = { feat: null, group: null };
+  schedule();
+});
+try { const t = localStorage.getItem('footread-explore-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+// Optional URL params (?group=body_part&feature=angle_deg&theme=dark) to share a view.
+const q = new URLSearchParams(location.search);
+if (q.get('feature') && featCols.includes(q.get('feature'))) $('feature').value = q.get('feature');
+if (q.get('group') && catCols.includes(q.get('group'))) { $('group').value = q.get('group'); colorBy = 'group'; }
+if (q.get('theme') === 'dark' || q.get('theme') === 'light') document.documentElement.dataset.theme = q.get('theme');
+render();
+</script>
+</body>
+</html>
