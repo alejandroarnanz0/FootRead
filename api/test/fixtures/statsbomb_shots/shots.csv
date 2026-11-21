@@ -1,0 +1,4 @@
+match_id,competition_name,season_name,match_date,team,player,x,y,under_pressure,shot_outcome_name,body_part,technique,shot_type,play_pattern,xg_statsbomb,is_goal,split,distance,angle_deg
+1001,Test League,2020/2021,2021-01-10,Home FC,Ana Test,113.8,43.2,False,Goal,Left Foot,Normal,Open Play,Regular Play,0.22,1,test,6.977,56.62
+1001,Test League,2020/2021,2021-01-10,Away FC,Bea Test,101.1,25.8,True,Saved,Right Foot,Normal,Open Play,From Corner,0.03,0,train,23.64,15.564
+1001,Test League,2020/2021,2021-01-10,Away FC,Bea Test,101.1,25.8,True,Blocked,Right Foot,Normal,Open Play,From Corner,0.03,0,train,23.64,15.564

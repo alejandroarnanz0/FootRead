@@ -27,12 +27,18 @@ function readOptions(argv = process.argv.slice(2)) {
   const dataDir = path.resolve(
     get('data-dir') || path.join(__dirname, '..', '..', '..', '..', 'data', 'data_from_transfermarkt')
   );
-  return { leagues, dataDir, force: argv.includes('--force') };
+  return { leagues, dataDir, force: argv.includes('--force'), testDb: argv.includes('--test-db') };
 }
 
-async function connect() {
-  if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is not set');
-  await mongoose.connect(process.env.MONGODB_URI);
+// --test-db: use the disposable MONGODB_URI_TEST (its name must end in _test).
+async function connect({ testDb = process.argv.includes('--test-db') } = {}) {
+  const uri = testDb ? process.env.MONGODB_URI_TEST : process.env.MONGODB_URI;
+  if (!uri) throw new Error(`${testDb ? 'MONGODB_URI_TEST' : 'MONGODB_URI'} is not set`);
+  await mongoose.connect(uri);
+  if (testDb && !mongoose.connection.name.endsWith('_test')) {
+    await mongoose.disconnect();
+    throw new Error('--test-db: MONGODB_URI_TEST must point to a database whose name ends in _test');
+  }
   console.log(`Connected to database "${mongoose.connection.name}"`);
 }
 
