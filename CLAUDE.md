@@ -1,32 +1,37 @@
 # Footboard
 
-Herramienta de scouting: detecta jugadores de fútbol infravalorados por el
-mercado. Proyecto final de Sistemas de Información Ubicuos (Grado de Ingeniería
-Informática de Talavera, curso 2026-27).
+Dashboard de analítica de fútbol con dos piezas: **scouting de jugadores
+infravalorados** (heurística de comparables sobre datos de Transfermarkt) y un
+**modelo de xG servido en tiempo real** mientras se reproduce un partido ya
+jugado (StatsBomb). Proyecto final de Sistemas de Información Ubicuos (Grado de
+Ingeniería Informática de Talavera, curso 2026-27).
+
+**La entrega es un VÍDEO (18-12-2026), no una memoria.** Todo lo que se quiera
+contar tiene que poder **enseñarse en pantalla**.
+
+`AGENTS.md` (raíz) son las instrucciones para el compañero que hace el frontend,
+Socket.IO y el usuario simulado. Este fichero es la fuente de verdad del proyecto.
 
 ---
 
 ## 1. Qué hace la aplicación
 
-Ingiere datos públicos de jugadores de fútbol (perfil, valor de mercado histórico
-y estadísticas de rendimiento), los normaliza en MongoDB y los sirve a un
+Ingiere datos públicos de fútbol, los normaliza en MongoDB y los sirve a un
 dashboard interactivo.
 
-Un modelo de regresión aprende cuánto vale un jugador según su edad, posición,
-liga y rendimiento. Comparando esa predicción con el valor real de mercado
-aparecen los **residuos**: jugadores que el modelo tasa muy por encima de lo que
-cuestan. Esos son los infravalorados.
+- **Valor de mercado por comparables** (heurística, **no** modelo): un jugador
+  debería valer lo que valen los jugadores parecidos a él. La diferencia con su
+  valor real (el **residuo**) señala a los posibles infravalorados.
+- **xG** (*expected goals*, XGBoost): probabilidad de que un tiro acabe en gol.
+  Un script reproduce un partido ya jugado enviando sus eventos por la API como
+  si ocurrieran en directo; cada tiro recibe su xG al llegar.
 
-**La pregunta que responde la app:** ¿qué jugadores valen menos de lo que
-deberían, dado su perfil y su rendimiento?
-
-**Para quién:** un club con presupuesto limitado buscando fichajes eficientes.
+**Preguntas que responde:** ¿qué jugadores valen menos que otros parecidos a
+ellos? ¿Qué calidad tienen las ocasiones de un partido, en directo?
 
 ---
 
 ## 2. Requisitos del enunciado
-
-Deben guiar cada decisión de diseño:
 
 - Aplicación web **distribuida full-stack** con cuadro de mando
 - Datos **heterogéneos** en tipo, formato, granularidad y frecuencia
@@ -34,31 +39,32 @@ Deben guiar cada decisión de diseño:
 - Representación gráfica **flexible**, con **manipulación directa**
 - Solución innovadora
 
-Nota: "manipulación directa" significa que el usuario actúa sobre la
-representación visual misma (clicar un punto del gráfico, arrastrar para acotar
-un rango) y todo lo demás reacciona. No basta con un panel de gráficas estáticas.
+"Manipulación directa": el usuario actúa sobre la representación visual
+(clicar un punto, arrastrar para acotar un rango) y todo lo demás reacciona.
+
+Requisitos añadidos por el profesor en la tutoría del 29-10-2026: sección 14.
 
 ---
 
 ## 3. Arquitectura
 
-Cuatro procesos independientes:
-
 ```
-  FUENTES          ETL            MONGODB         API            WEB
-  CSV/JSON   →   Node script  →   Atlas    →   Express   →    React
-                 (una vez)                      (JSON)       (navegador)
-                                                   ↕
-                                            SERVICIO ML
-                                          Python (FastAPI)
+  FUENTES            ETL               MONGODB          API              WEB
+  CSV / parquet  →   scripts Node  →   Atlas      →    Express    →     React
+  / JSON             (a mano, 1 vez)   footboard        (JSON + JWT)    (navegador)
+                                                        │      ▲
+                                                        │      │ WebSocket (Socket.IO, pendiente)
+                                         POST /predict  ▼      │
+  REPRODUCTOR  ── POST eventos (JWT) ──►  API  ──►  SERVICIO ML (Python, FastAPI, Docker)
+  (partido ya jugado)                                   XGBoost + SHAP
 ```
 
-- **ETL** — script de Node que se ejecuta a mano, no forma parte de la web
-- **MongoDB Atlas** — los datos ya limpios
-- **API Express** — sin interfaz; recibe peticiones HTTP y devuelve JSON
-- **React** — lo que ve el usuario; pide datos a la API con axios
-- **Servicio ML** — Python aparte, porque XGBoost y SHAP no existen en Node.
-  Express hace de intermediario.
+- **ETL**: scripts de Node que se lanzan a mano; no forman parte de la web.
+- **API Express**: sin interfaz; JSON. Hace de intermediaria con el servicio de ML.
+- **Servicio ML** (`ml/serve.py`): aparte, porque XGBoost y SHAP no existen en Node.
+- **Reproductor** (`api/scripts/replay.js`): envía por la API los eventos de un
+  partido ya jugado respetando su ritmo (sección 14.3).
+- **React**: pide datos con axios; la vista en vivo escuchará el WebSocket.
 
 ---
 
@@ -66,17 +72,19 @@ Cuatro procesos independientes:
 
 | Capa | Tecnología |
 | --- | --- |
-| ETL | Node.js, scripts en `scripts/` |
-| Base de datos | MongoDB Atlas + Mongoose |
-| Backend | Express (`express-generator --no-view`) |
-| Frontend | React + Vite |
+| ETL | Node.js (`api/scripts/etl/`) |
+| Base de datos | MongoDB Atlas + Mongoose 8 |
+| Backend | Express 4 (`express-generator --no-view`) |
+| Autenticación | `jsonwebtoken` + `bcryptjs` |
+| Tiempo real | Socket.IO (pendiente) |
+| Frontend | React 19 + Vite 8 + react-router-dom 7 |
 | Cliente HTTP | axios |
 | Gráficos | Recharts |
-| Modelo | Python: scikit-learn, XGBoost, SHAP |
+| Modelo (xG) | Python 3.12 en Docker: XGBoost, scikit-learn, SHAP, FastAPI |
 | Orquestación local | Docker Compose |
 | Despliegue | Render (auto-deploy desde `main`) + Atlas |
 
-No introducir TypeScript, Redux, Next.js ni ORMs alternativos. La asignatura es
+No introducir TypeScript, Redux, Next.js ni ORMs alternativos: la asignatura es
 MERN y el proyecto debe parecerse a lo enseñado en clase.
 
 ---
@@ -84,566 +92,404 @@ MERN y el proyecto debe parecerse a lo enseñado en clase.
 ## 5. Estructura del repositorio
 
 ```
-footboard/
+FootRead/
+├── AGENTS.md / CLAUDE.md
+├── .env.example            un único .env en la raíz para todo el repo
+├── docker-compose.yml      api, web, ml (sin Mongo: es Atlas)
 ├── api/                    backend Express
-│   ├── app.js              conexión a Atlas, middlewares, rutas, errores
-│   ├── bin/www             arranque del servidor
-│   ├── models/             Player.js, Club.js, Competition.js, Valuation.js, SeasonStat.js
-│   ├── routes/             players.js, clubs.js, competitions.js, aggregates.js, predictions.js
-│   ├── utils/              asyncHandler.js, httpError.js, pick.js
-│   ├── scripts/            seed.js, etl/
-│   └── test/               pruebas de integración
-├── web/                    frontend React + Vite
-│   └── src/
-│       ├── api/            cliente axios y funciones por recurso
-│       ├── components/     componentes reutilizables
-│       ├── pages/          una por vista
-│       └── hooks/          estado compartido de filtros
-├── ml/                     servicio Python de modelos
-│   ├── train.py            entrenamiento offline
-│   ├── serve.py            endpoint de inferencia
-│   └── models/             modelo serializado + features.json
-├── data/                   muestras congeladas de las fuentes
-├── docker-compose.yml
-├── README.md
-└── CLAUDE.md
+│   ├── app.js              conexión, middlewares, JWT, rutas, manejador de errores
+│   ├── bin/www             arranque (PORT)
+│   ├── models/             Competition, Club, Player, Valuation, SeasonStat,
+│   │                       Shot, Match, MatchEvent, User
+│   ├── routes/             competitions, clubs, players, valuations, stats,
+│   │                       comparables, aggregates, predictions, matches, auth
+│   ├── middleware/         filters.js (filtros transversales), auth.js (JWT)
+│   ├── utils/              asyncHandler, httpError, pick, mlClient, statsbombEvent
+│   ├── scripts/            etl/ (Transfermarkt, shots, matches), value/ (heurística),
+│   │                       replay.js (reproductor), seed.js (datos ficticios, obsoleto)
+│   └── test/               integración contra footboard_test (+ helpers/, fixtures/)
+├── web/src/                api/ (cliente axios por recurso), components/, hooks/, pages/
+├── ml/                     modelo de xG (ver ml/README.md)
+│   ├── config.yaml         todos los parámetros
+│   ├── BaselineModel/      main.py (punto de entrada), build_features.py (LA función
+│   │                       de features), data/data.py, model/{train,evaluate,tune}.py,
+│   │                       plots/plots.py
+│   ├── serve.py            servicio FastAPI;  tests/ (pytest)
+│   ├── tools/              compare_runs.py (tabla de ejecuciones),
+│   │                       explore_dataset/ (explorador HTML de los datos)
+│   └── OUTPUT_AI/<run>/    una carpeta por entrenamiento (en .gitignore)
+└── data/                   fuentes congeladas (en .gitignore salvo README.md)
 ```
 
 ---
 
 ## 6. Fuentes de datos
 
-### Decidida y descargada
+Todas se congelan en `data/` (en `.gitignore`). Cómo obtenerlas: `data/README.md`.
 
-**Transfermarkt** (dataset de dcaribou, vía Kaggle). Fuente principal, en
-`data/data_from_transfermarkt/`. Foto de septiembre de 2026; las actualizaciones
-automáticas del dataset están pausadas desde julio de 2026, lo que para el
-proyecto es una ventaja: versión estable y reproducible.
+### Transfermarkt (dcaribou, Kaggle) — `data/data_from_transfermarkt/`
 
-| Fichero | Contenido | Filas |
-| --- | --- | --- |
-| `competitions.csv` | Ligas y torneos | 65 |
-| `clubs.csv` | Clubes y su liga | 796 |
-| `players.csv` | Perfiles, posición, valor actual | 50.149 |
-| `player_valuations.csv` | Histórico de valoraciones | 656.301 |
-| `appearances.csv` | Una fila por jugador y partido | 1.894.350 |
+Foto de septiembre de 2026 (las actualizaciones del dataset están pausadas desde
+julio de 2026: versión estable). Se usan `competitions`, `clubs`, `players`,
+`player_valuations`, `appearances` y `games`.
 
-**Limitación importante:** `appearances.csv` solo trae minutos, goles,
-asistencias y tarjetas. **Ni tiros, ni pases, ni entradas.** Con solo esta
-fuente, el modelo apenas distingue a un central de un portero y acabaría
-prediciendo casi por edad, posición y liga. Los campos `shots`,
-`passesCompleted` y `tackles` de `SeasonStat` quedan vacíos.
+**Limitación:** `appearances.csv` solo trae minutos, goles, asistencias y
+tarjetas. Ni tiros, ni pases, ni entradas: `shots`, `passesCompleted` y
+`tackles` de `SeasonStat` quedan vacíos. Transfermarkt alimenta la parte de
+jugadores del dashboard y la heurística de valor (11.1), no un modelo.
 
-### Siguiente: FBref
+### StatsBomb — dos vías distintas, no mezclarlas
 
-Deja de ser un extra y pasa a ser **necesaria** por la limitación anterior. Es lo
-que hace que el rendimiento pese de verdad en la predicción.
+**Vía A, entrenar el xG:** dataset de Hugging Face
+`ClementeH/statsbomb-open-data-shots` en `data/statsbomb_shots/` (88.023 tiros,
+CC BY-SA 4.0). **No trae minuto** ni orden dentro del partido. Sus splits
+(al azar, tiro a tiro) **no se usan**, ni sus columnas `distance_to_goal` /
+`angle_to_goal` (fórmula del ángulo sin documentar): ver 11.2.
 
-No se descarga como fichero: se extrae con la librería `soccerdata` de Python
-(`pip install soccerdata`), llamando a `read_player_season_stats` con
-`stat_type` en `shooting`, `passing` y `defense`, y juntando los resultados.
+**Vía B, reproducir en vivo:** StatsBomb Open Data (`github.com/statsbomb/open-data`)
+en `data/statsbomb_open_data/`: catálogo, partidos y los JSON de eventos
+completos de los 3 partidos de la demo (con `index`, `period`, `minute`, `second`).
+Los eventos de tiro traen además `freeze_frame` (posición de defensas y portero),
+que el dataset de la vía A no tiene: es la mejora más prometedora del xG.
 
-Es un *scraper*, así que se extrae una vez y se congelan los CSV en `data/`.
-Tiene límite de peticiones; la primera extracción de cinco ligas tarda.
+**Atribución obligatoria** (CC BY-SA 4.0): citar a StatsBomb en el dashboard
+(pie de las vistas que usan sus datos) y en el vídeo.
 
-**No comparte identificadores con Transfermarkt.** Hace falta una tabla de
-equivalencias de nombres de jugador y club, con normalización de cadenas y
-revisión manual de lo que no case. Es la tarea con más riesgo de desbordarse:
-**empezar emparejando solo LaLiga.**
+### Descartadas
 
-### Candidatas, no decididas
-
-- **StatsBomb** — eventos con coordenadas. Para métricas espaciales y para la
-  simulación en tiempo real (14.3). No alimenta el modelo de valor.
-- **Football-Data** — resultados y cuotas de casas de apuestas. Serviría de
-  *baseline* para un modelo de predicción de resultado.
-
-Todas las fuentes se congelan en `data/`, que está en `.gitignore`. Documentar en
-`data/README.md` cómo obtenerlas.
+FBref (emparejar nombres sin ids comunes, y dudas sobre si sigue dando
+estadísticas avanzadas) y Football-Data (solo servía para un modelo de resultado).
 
 ---
 
 ## 7. Modelo de datos (Mongoose)
 
-Cinco modelos, un fichero por modelo en `api/models/`, nombre en singular y con
-mayúscula inicial.
+Un fichero por modelo en `api/models/`, nombre en singular con mayúscula.
 
-### Competition
 ```
-code        String, required, unique    // "ES1"
-name        String, required
-country     String
-tier        Number                      // 1 = primera división
+Competition  code (unique, "ES1") · name · country · tier
+Club         name · competition → Competition · country · externalIds{transfermarkt, fbref}
+Player       name · birthDate · position (GK|DF|MF|FW) · subPosition · foot · heightCm (140-220)
+             club → Club · currentValue (€) · predictedValue (€, lo escribe la heurística)
+             contractUntil · lastSeason (año de inicio) · externalIds{transfermarkt, fbref}
+Valuation    player → Player · date · value (€)          único {player, date}
+SeasonStat   player · season ("2023-24") · competition · minutes · goals · assists
+             (shots, passesCompleted, tackles vacíos)   único {player, season, competition}
+Shot         tiros de la vía A para el dashboard: shotKey (único) · matchId · competition
+             season · team · playerName · x · y · distanceToGoal · angleToGoal (calculados
+             por build_features.py, nunca en Node) · outcome · bodyPart · technique · shotType
+             playPattern · xgStatsbomb · isGoal · split
+Match        matchId (StatsBomb, único) · competition · season · matchDate · homeTeam
+             awayTeam · available (tiene fichero de eventos → se puede reproducir)
+MatchEvent   matchId · sequence (el `index` de StatsBomb) · period (1-5; 5 = penaltis)
+             minute · second · type · team · playerName · x · y
+             tiros: shotOutcome · shotType · isGoal · xg (nuestro; null si el ML no
+             respondió) · xgStatsbomb · card · replacement · raw (evento original)
+             único {matchId, sequence}: reenviar un evento no lo duplica
+User         email (único, minúsculas) · name · passwordHash (bcrypt, select: false)
 ```
-
-### Club
-```
-name          String, required
-competition   ObjectId → Competition, required
-country       String
-externalIds   { transfermarkt: String, fbref: String }
-```
-
-### Player
-```
-name           String, required, trim
-birthDate      Date
-position       String, enum: ['GK','DF','MF','FW'], required
-subPosition    String                  // una de las 13 de Transfermarkt ("Centre-Forward")
-foot           String, enum: ['left','right','both']
-heightCm       Number, min: 140, max: 220
-club           ObjectId → Club
-currentValue   Number, min: 0          // euros, desnormalizado para listar rápido
-predictedValue Number, min: 0          // euros, lo escribe el scoring offline (no la API)
-contractUntil  Date
-lastSeason     Number, min: 1900       // año de inicio de la última temporada jugada
-externalIds    { transfermarkt: String, fbref: String }
-```
-
-### Valuation
-```
-player    ObjectId → Player, required
-date      Date, required
-value     Number, required, min: 0     // euros
-```
-Índice compuesto único: `{ player: 1, date: 1 }`
-
-### SeasonStat
-```
-player         ObjectId → Player, required
-season         String, required        // "2023-24"
-competition    ObjectId → Competition
-minutes        Number, min: 0
-goals          Number, min: 0
-assists        Number, min: 0
-shots          Number, min: 0
-passesCompleted Number, min: 0
-tackles        Number, min: 0
-```
-Índice compuesto único: `{ player: 1, season: 1, competition: 1 }`
 
 ### Reglas
-- La **validación vive en el esquema**, nunca repetida en las rutas. Mongoose
-  lanza `ValidationError` y la ruta responde 400.
-- Relaciones por `ObjectId` + `ref`, resueltas con `populate` solo cuando la
-  respuesta lo necesite (populate indiscriminado mata el rendimiento).
-- Índices por los campos de filtro habituales: `position`, `currentValue`,
-  `club`, `birthDate`.
-- Los agregados pesados se calculan con el **aggregation pipeline**, no trayendo
-  documentos a Node para sumarlos ahí.
+- La **validación vive en el esquema**, nunca repetida en las rutas.
+- Relaciones por `ObjectId` + `ref`; `populate` solo cuando la respuesta lo necesita.
+- Agregados pesados en el **aggregation pipeline**, no en Node.
+- **Coordenadas de StatsBomb**: campo 120 × 80 yardas, y **cada evento está
+  orientado hacia la portería que ataca su equipo** (x = 120). Para pintar a los
+  dos equipos en un mismo campo hay que reflejar a uno: `x' = 120 − x`, `y' = 80 − y`.
 
 ---
 
 ## 8. ETL
 
-Scripts en `api/scripts/etl/`, uno por entidad, ejecutables de forma
-independiente y en este orden: competiciones → clubes → jugadores → valoraciones
-→ estadísticas. Escriben **directamente con Mongoose**, no por la API (ver 14.2).
+Scripts en `api/scripts/etl/`. Escriben **directamente con Mongoose**, no por la
+API (ver 14.2). Idempotentes: `updateOne` + `upsert` sobre la clave natural, en
+lotes con `bulkWrite`; cada documento se valida con `validateSync()` antes
+(`bulkWrite` no ejecuta validadores). Informe final: insertados, actualizados y
+descartados por motivo. Flag `--test-db` para escribir en `footboard_test`.
 
-### Decisiones de alcance (confirmadas)
-
-| Decisión | Valor |
+| Script | Qué carga |
 | --- | --- |
-| Ligas | Las cinco grandes: `ES1`, `GB1`, `IT1`, `L1`, `FR1` |
-| Jugadores | Solo los que militan **hoy** en una liga cargada |
-| `SeasonStat` | Solo competiciones de liga doméstica, ni copas ni UEFA |
-| Base previa | **Vaciar** antes de la primera carga (el seed la contaminaría) |
+| `npm run etl -- --leagues=ES1,GB1,IT1,L1,FR1` | Transfermarkt: competiciones → clubes → jugadores → valoraciones → `SeasonStat` |
+| `npm run etl:wipe -- --force` | Vacía las 5 colecciones de Transfermarkt |
+| `npm run etl:shots` | `Shot` desde `data/statsbomb_shots/shots.csv` (lo genera el pipeline de `ml/`) |
+| `npm run etl:matches` | `Match` desde `data/statsbomb_open_data/matches/**` |
 
-Volumen esperado: ~176 clubes, ~11.813 jugadores (~3.012 con valor de mercado),
-~191.754 valoraciones y ~27.697 filas de `SeasonStat`.
-
-**Validar primero con LaLiga sola** (33 clubes, 2.278 jugadores) y ampliar
-después. Si algo está mal se ve en dos minutos en vez de media hora.
-
-### Campos nuevos que exige el ETL
-
-- `Player.lastSeason` (Number) — solo 748 de los 2.278 jugadores de LaLiga siguen
-  en activo. Los retirados **sí sirven para entrenar** el modelo, pero **no deben
-  aparecer** en el Explorador. Se cargan todos y se filtra en la vista.
-- `Player.subPosition` (String) — los 13 valores de Transfermarkt. Distingue un
-  extremo de un delantero centro, y eso es señal real para el modelo.
-
-### Normalización al cargar
-
-- Posiciones al `enum` de cuatro valores: `Goalkeeper`→GK, `Defender`→DF,
-  `Midfield`→MF, `Attack`→FW. Los 586 con posición `Missing` **no se cargan**.
-- Alturas fuera de 140–220 cm se descartan (hay 13 absurdas, una de 17 cm).
-- Nombres con `trim` y dobles espacios colapsados.
-- Fechas a `Date`; valores de mercado en euros enteros.
-- `Competition.name` no existe legible en el CSV (solo un *slug* tipo `laliga`):
-  **mapa manual** para las cinco ligas.
-- `Club.country` se deriva del `country_name` de su competición.
-- `SeasonStat` se obtiene agregando `appearances.csv` por
-  `(player_id, season, competition_id)`, uniendo con `games.csv` para sacar la
-  temporada. Formato `YYYY-YY`.
-
-### Reglas técnicas
-
-- **Idempotente**: `updateOne` + `upsert: true` sobre el id externo de
-  Transfermarkt, nunca `insertMany` a ciegas.
-- Procesar en **lotes** con `bulkWrite`.
-- Informe final: insertados, actualizados y **descartados por cada motivo**.
-- Reutilizar los modelos de Mongoose, no consultas crudas.
+Alcance de Transfermarkt (confirmado): las cinco grandes ligas; jugadores cuyo
+club **actual** está en una liga cargada (incluye retirados, que se distinguen
+por `lastSeason`); `SeasonStat` solo de liga doméstica (`games.season` "2023" →
+"2023-24"). Normalización: posiciones `Goalkeeper/Defender/Midfield/Attack` →
+`GK/DF/MF/FW` (`Missing` no se carga), alturas fuera de 140-220 a null, nombres
+con `trim`, fechas a `Date` UTC, valores en euros enteros.
 
 ---
 
 ## 9. API
 
-### Patrón de routers anidados
+### Patrones
+- Routers anidados con `express.Router({ mergeParams: true })`; la referencia al
+  padre **sale de la URL, nunca del cuerpo**. `router.param` carga el recurso una vez.
+- `asyncHandler` (sin `try/catch` repetidos), `httpError(status, msg)`, `pick`
+  (POST/PUT solo aceptan campos del modelo). Errores siempre `{ "error": "..." }`.
+- Listas: `{ data, page, limit, total, totalPages }`; 50 por defecto, máximo 200.
+  `.lean()` y `.select()` explícito en lecturas.
+- Filtros transversales en la *query string*, parseados una vez por
+  `middleware/filters.js`: `position` (lista con comas), `minAge`, `maxAge`,
+  `competition` (código), `maxValue`, `sort` (lista blanca por recurso, `-` =
+  descendente), `page`, `limit`. Valores no string → 400 (inyección de operadores).
+- Códigos: 201 crear · 204 borrar · 400 validación o id mal formado · 401 sin
+  token / token inválido o caducado · 404 · 409 duplicado o padre con hijos ·
+  503 servicio de ML caído.
 
-El padre delega y el hijo hereda parámetros con
-`express.Router({ mergeParams: true })`. **Sin `mergeParams` los parámetros del
-padre llegan como `undefined`.**
-
-```
-/api/competitions/:competitionId/clubs/:clubId/players
-/api/players/:playerId/valuations
-/api/players/:playerId/stats
-```
-
-La referencia al padre **sale siempre de la URL, nunca del cuerpo**. Al crear un
-jugador bajo un club, el club es el de la ruta.
+### Autenticación (JWT)
+**Toda la API exige `Authorization: Bearer <token>`, lecturas incluidas**, salvo
+`GET /api/health` y `/api/auth/*`. Token HS256, caduca a la hora.
 
 ### Endpoints
 
-| Método | Ruta | Acción |
+| Método | Ruta | Qué hace |
 | --- | --- | --- |
+| GET | `/api/health` | Comprobación (público) |
+| POST | `/api/auth/register`, `/api/auth/login` | `{ token, user }` (público) |
+| GET | `/api/auth/me` | Usuario del token |
 | GET/POST | `/api/competitions` | Listar / crear |
-| GET/PUT/DELETE | `/api/competitions/:id` | Ver / modificar / eliminar |
-| GET/POST | `/api/competitions/:id/clubs` | Clubes de una competición / crear en ella |
-| GET | `/api/clubs` | Clubes de todas las competiciones (global) |
-| GET/PUT/DELETE | `/api/clubs/:id` | Ficha de club |
-| GET/POST | `/api/clubs/:id/players` | Jugadores de un club / crear en él |
-| GET | `/api/players` | Jugadores de todos los clubes (global, lo usa el Explorador) |
-| GET/PUT/DELETE | `/api/players/:id` | Ficha de jugador |
-| GET | `/api/players/:id/valuations` | Histórico de valoración |
+| GET/PUT/DELETE | `/api/competitions/:id` | Ficha |
+| GET/POST | `/api/competitions/:id/clubs` | Clubes de una competición / crear |
+| GET | `/api/clubs` | Todos los clubes (filtro `competition`) |
+| GET/PUT/DELETE | `/api/clubs/:id` | Ficha |
+| GET/POST | `/api/clubs/:id/players` | Jugadores de un club / crear |
+| GET | `/api/players` | Todos los jugadores, con filtros |
+| GET/PUT/DELETE | `/api/players/:id` | Ficha (`DELETE` en cascada) |
+| GET | `/api/players/:id/valuations` | Histórico de valor |
 | GET | `/api/players/:id/stats` | Estadísticas por temporada |
-| GET | `/api/aggregates/undervalued` | Ranking de infravalorados |
-| GET | `/api/aggregates/summary` | KPIs de cabecera |
-| POST | `/api/predictions/value` | Proxy al servicio ML |
+| GET | `/api/players/:id/comparables` | Los comparables de la heurística (solo lectura) |
+| GET | `/api/aggregates/undervalued` | Ranking por residuo, con filtros |
+| GET | `/api/aggregates/summary` | KPIs (jugadores, MAE, residuo medio), con filtros |
+| POST | `/api/predictions/xg` | Proxy al servicio de ML: un tiro en bruto o `{ shots: [...] }` |
+| POST | `/api/predictions/value` | Stub antiguo, sin uso |
+| GET | `/api/matches` | Partidos reproducibles |
+| GET | `/api/matches/:matchId` | Ficha del partido |
+| GET/POST/DELETE | `/api/matches/:matchId/events` | Eventos (`?after=<sequence>`, `?raw=true`) / recibir uno crudo de StatsBomb / limpiar |
+| GET | `/api/matches/:matchId/state` | Marcador, xG acumulado, tanda de penaltis, minuto |
 
-### Filtros transversales
-
-Van en la *query string*, **nunca en la ruta**. Un middleware compartido los
-parsea una sola vez y todos los routers de consulta lo reutilizan:
-
-```
-?position=FW&minAge=18&maxAge=23&competition=ES1&maxValue=5000000
-&sort=-residual&page=2&limit=50
-```
-
-Mal: `/players/position/FW/page/2`
-
-**Colecciones anidadas y globales.** Coexisten: la anidada sirve «los jugadores
-de este club» (el padre sale de la URL) y la global sirve al Explorador, que
-filtra jugadores de todos los clubes a la vez. Las dos comparten handler y
-filtros. Los **POST solo existen en la ruta anidada**, porque es la URL la que
-aporta la referencia al padre: `POST /api/players` y `POST /api/clubs` dan 404.
-
-Qué filtros aplica cada colección (los demás se ignoran):
-
-| Colección | Filtros |
-| --- | --- |
-| `/players`, `/clubs/:id/players` | `position`, `minAge`, `maxAge`, `maxValue`, `sort`, `page`, `limit`. `competition` solo en la global. |
-| `/clubs`, `/competitions/:id/clubs` | `sort`, `page`, `limit`. `competition` (código) solo en la global. |
-
-### Códigos de estado
-
-- **201** al crear
-- **400** validación fallida, o id que no es un `ObjectId` válido
-  (`CastError` es culpa del cliente, **no** un 500)
-- **404** recurso inexistente, o que no pertenece al padre de la URL
-- **500** errores del servidor
-
-### Utilidades obligatorias en `utils/`
-
-- `asyncHandler(fn)` — envuelve handlers `async` para que los errores lleguen al
-  manejador central de `app.js`. **Prohibido repetir `try/catch` en cada ruta.**
-- `pick(obj, fields)` — POST y PUT solo aceptan los campos del modelo; el resto
-  del cuerpo se ignora.
-- `httpError(status, message)` — errores uniformes.
-
-Usar `router.param` para cargar y validar el recurso padre una sola vez por
-petición.
-
-### Rendimiento
-
-- Paginación por defecto de 50, máximo 200. Nunca devolver colecciones enteras.
-- `.lean()` en las consultas de solo lectura.
-- `.select()` explícito: no devolver documentos completos cuando la vista solo
-  necesita cuatro campos.
+Los POST de recursos solo existen en la ruta anidada (`POST /api/players` da 404).
+Ejemplos reales de las respuestas más usadas (estado y evento de partido, xG): `AGENTS.md`, secciones 5 y 6.
 
 ---
 
 ## 10. Frontend
 
+React + Vite en `web/`. Un **único cliente axios** (`src/api/client.js`, base
+`VITE_API_URL`, adjunta el token y ante un 401 manda a `/login`); llamadas
+agrupadas por recurso en `src/api/`. **Estado global** de filtros (`useFilters`)
+y de sesión (`useAuth`); `useApi` para carga, error y reintento. Estados de
+carga, error **y vacío** explícitos en cada vista. CSS propio con tokens para
+modo claro y oscuro; textos en español, código en inglés.
+
 ### Vistas
 
-1. **Explorador** (principal) — scatter plot de valor real contra valor predicho.
-   La diagonal es "mercado y modelo coinciden"; los puntos por encima son los
-   infravalorados. Panel de filtros al lado y tabla ordenable debajo.
-2. **Ficha de jugador** — perfil, serie temporal de su valoración, estadísticas
-   por temporada y desglose SHAP de por qué el modelo lo tasa como lo tasa.
-3. **Comparador** — dos o tres jugadores enfrentados en las mismas métricas.
-4. **Visión general** — KPIs: jugadores analizados, error del modelo, los diez
-   más infravalorados.
+| Ruta | Vista | Estado |
+| --- | --- | --- |
+| `/login` | Entrar o registrarse | Hecha |
+| `/` | **Explorador**: scatter real vs. referencia (log-log, diagonal), filtros, tabla ordenable; clic → ficha | Hecha salvo arrastre y CSV |
+| `/players/:id` | **Ficha**: perfil, serie de valor, estadísticas por temporada, comparables | Básica |
+| `/live/:matchId` | **Partido en vivo**: campo con tiros escalados por xG, marcador, xG acumulado | Pendiente |
+| `/overview` | **Visión general**: KPIs y top infravalorados | Placeholder |
+| `/compare` | **Comparador** de 2-3 jugadores | Placeholder |
+| `/model` | **El modelo de xG**: las gráficas de evaluación con una frase cada una | Pendiente |
 
-### Manipulación directa
+### Manipulación directa (requisito)
+Clic en un punto → ficha · arrastrar sobre el scatter → recorta la tabla · los
+filtros mueven a la vez scatter, tabla y KPIs · descarga CSV del subconjunto.
 
-Es un requisito del enunciado, no un extra:
-- Clic en un punto del scatter → abre la ficha de ese jugador
-- Arrastrar sobre el scatter para seleccionar una región → recorta la tabla
-- Los filtros afectan simultáneamente al scatter, la tabla y los KPIs
-- Descarga en CSV del subconjunto filtrado
-
-### Reglas
-
-- Un **único estado global de filtros** (Context o hook propio) compartido por
-  todas las vistas. No duplicar estado por componente.
-- Un único cliente axios configurado en `src/api/client.js` con la URL base
-  desde variable de entorno. Las llamadas se agrupan por recurso.
-- axios rechaza la promesa si el estado no es 2xx (a diferencia de `fetch`).
-  Manejar siempre el `catch` y mostrar el error al usuario, nunca fallar en
-  silencio.
-- Estados de carga y de error explícitos en cada vista.
+La heurística se presenta como **"referencia por comparables"**, nunca como
+"predicción" ni "modelo".
 
 ---
 
-## 11. Capa de ML
+## 11. Capa de análisis
 
-### El modelo
+### 11.1 Valor de mercado: heurística de comparables
 
-Regresión sobre el valor de mercado. **Target: logaritmo del valor**, no el valor
-bruto — la distribución está brutalmente sesgada y sin log el modelo solo acierta
-con las estrellas. Deshacer la transformación al predecir.
+`api/scripts/value/` (`comparables.js` funciones puras, `population.js`,
+`run.js`). `npm run value` escribe `Player.predictedValue`; `-- --dry-run` solo
+muestra el informe. **El código es la fuente de verdad**: el documento de
+diseño `PLAN-xg-tiempo-real.md` (§8) describe una versión anterior (agrupar por
+competición, mínimo 8) que se sustituyó por esta.
 
-Features: edad (no lineal, pico a los 24-26), posición, minutos jugados, goles y
-asistencias por 90 minutos, liga, años de contrato restantes, altura, pie.
+- **Población:** jugadores en activo (`lastSeason` ≥ 2025) con `currentValue` y
+  minutos de liga en 2025-26. El resto queda sin `predictedValue` (y fuera del
+  Explorador). Edad calculada a 1-1-2026.
+- **Grupo de comparables**, del más estricto (nivel 0) al más laxo (3):
+  0. `subPosition` + tramo de edad (≤21, 22-24, 25-27, 28-30, 31+) + tramo de
+     minutos (<25 %, 25-50 %, 50-75 %, ≥75 % de 38 partidos, 34 en L1/FR1) +
+     tramo de goles+asistencias por 90 (solo atacantes y mediapuntas con ≥ 450 min)
+  1. sin el tramo de producción
+  2. con tramo de edad ancho (≤23, 24-29, 30+)
+  3. con la posición general en vez de `subPosition`
+  Se usa el primer nivel con **al menos 10** jugadores, **sin contar al propio**.
+- **Valor relativo:** valor / mediana de **su club** (absorbe liga y fuerza del
+  club). Referencia = mediana del valor relativo del grupo × mediana de su club.
+  (Con la mediana de liga el top eran suplentes de la Premier a 90 M€.)
+- Resultado actual: 2.445 jugadores con referencia, **MAE 6,11 M€**.
+- `GET /api/players/:id/comparables` recalcula los grupos en memoria (caché de
+  10 min) y devuelve los comparables del jugador; nunca escribe.
 
-### El producto son los residuos
+Limitación que debe decirse en el vídeo: un residuo grande significa o que el
+mercado se equivoca, o que a la heurística le falta información (lesión,
+contrato, calidad que no sale en goles y asistencias, sobre todo en defensas y
+porteros). El ranking es por residuo absoluto y favorece a clubes caros.
 
-`residual = valor_predicho − valor_real`. Un residuo positivo grande marca a un
-jugador infravalorado.
+Descartado un modelo histórico de valor: inflación (mediana de LaLiga de 1 M€ en
+2015-16 a 3 M€ en 2025-26) y sesgo de supervivencia.
 
-**Advertencia que debe constar en la memoria:** un residuo grande significa o que
-el mercado se equivoca, o que al modelo le falta información que el mercado sí
-tiene (lesión reciente, conflicto con el club, contrato a punto de expirar). El
-modelo no distingue ambos casos. Reconocerlo y proponer mitigaciones vale más que
-fingir infalibilidad.
+### 11.2 Modelo de xG
 
-### Reglas no negociables
+Pipeline en `ml/` (detalle y comandos en `ml/README.md`), todo en Docker
+(imagen `footboard-ml`). `config.yaml` lo describe; cada ejecución deja en
+`ml/OUTPUT_AI/<fecha_hora>/` modelo, métricas, análisis y gráficas.
 
-- **Split temporal, nunca aleatorio.** Entrenar con valoraciones antiguas,
-  validar con las recientes.
-- Evaluar con **MAE sobre el valor en euros** además del error en escala
-  logarítmica: el error en log no se entiende.
-- **Un jugador no puede estar en entrenamiento y validación a la vez.** Agrupar
-  por jugador al hacer el split.
-- Entrenamiento **offline**. El modelo se serializa junto a un `features.json`
-  con la lista de features y sus tipos. **Nunca se entrena al atender una
-  petición.**
+- **Features:** una única función, `build_features()` en
+  `ml/BaselineModel/build_features.py` (el documento de diseño la llama
+  `shot_features()`: es la misma). La usan el entrenamiento y `serve.py`.
+  33 features: distancia y ángulo **recalculados desde x, y**, desvío lateral,
+  dentro del área / área pequeña, distancia si es cabezazo, presión y las
+  categorías (parte del cuerpo, técnica, tipo de tiro, origen de la jugada) en 0/1.
+  **Nunca** `xg_statsbomb` ni el resultado del tiro como feature.
+  Se calculan **una vez por ejecución** sobre todos los tiros y se guardan en
+  `OUTPUT_AI/<run>/features.parquet` (con `match_id`, split, `is_goal`,
+  `xg_statsbomb` para comprobar que encaja); `--only-evaluate` lo reutiliza.
+- **Datos:** reparto propio **por partido** (80/10/10), partidos de la demo
+  forzados a test, penaltis fuera (tasa fija empírica 0,733).
+- **Modelo:** XGBoost `binary:logistic` con early stopping; calibración ajustada
+  en validación (`config.yaml`: ahora `sigmoid`; la isotónica creaba mesetas).
+  Optimización opcional con Optuna (`ml/run.sh train --tune`): CV por partido
+  dentro de train, nunca mira validación ni test, no edita `config.yaml`.
+- **Evaluación solo en test**, a tres bandas: baseline (logística con distancia
+  y ángulo), nuestro XGBoost y el xG de StatsBomb. Log loss, Brier, PR-AUC,
+  ROC-AUC y fiabilidad; **nunca accuracy**. Bootstrap por partido para ver si
+  las diferencias son reales.
+- **Resultados** (ejecución `2026-11-20_1949`, sigmoid; log loss / PR-AUC):
+  baseline 0,302 / 0,280 · nuestro 0,283 / 0,348 · StatsBomb 0,271 / 0,421.
+  Mejoramos al baseline y StatsBomb nos mejora, ambas cosas de forma
+  significativa. Perdemos sobre todo a menos de 6 yardas: ahí manda la posición
+  del portero y los defensas, que no tenemos.
+- **Gráficas** (`plots/`): curva de aprendizaje, fiabilidad, comparativa de
+  métricas, importancia (gain), SHAP, mapa de calor del xG, dependencia con
+  distancia y ángulo, error por segmento. Para el vídeo se muestran en la vista `/model`.
 
-### Servido
+### 11.3 Servido
 
-`ml/serve.py` carga el modelo al arrancar y expone `POST /predict`, que recibe el
-vector de features y devuelve `{ predictedValue, shapValues }`. Express consulta
-MongoDB, construye el vector y hace de intermediario.
+`ml/serve.py` (FastAPI) carga la ejecución `MODEL_RUN` al arrancar (nunca
+entrena), comprueba que sus features coinciden con `build_features.py`, y expone
+`GET /health`, `POST /predict` (tiro **en bruto** → `{ xg, xgRaw, shapValues,
+baseValue, penalty, run }`) y `POST /predict/batch`. Express llama a través de
+`api/utils/mlClient.js`. Si el servicio no responde, la ingesta guarda `xg: null`
+y sigue; **el ML nunca bloquea**.
 
 ---
 
 ## 12. Convenciones
 
-- Código, variables y comentarios en **inglés**. Documentación y commits en
-  español.
-- Sin secretos en el repositorio. `.env` en `.gitignore`, `.env.example` con
-  marcadores. La cadena de Atlas lleva contraseña.
-- El puerto se lee de `process.env.PORT` (Render lo asigna).
-- Trabajar en ramas, nunca directamente sobre `main`.
-- Pruebas de integración contra una base desechable cuyo nombre acaba en `_test`
-  y se borra al terminar. **Nunca contra la base real.**
+- Código, variables y comentarios en **inglés**. Textos de la interfaz y
+  documentación en español. **Commits en inglés** (Conventional Commits:
+  `feat(api): ...`, `fix(web): ...`).
+- Ramas siempre; nunca trabajar sobre `main`. Se fusiona por PR.
+- Un único `.env` en la raíz; sin secretos en el repo. `.env.example` con marcadores.
+- **Base de datos:** se **lee** de `footboard`; los scripts y tests **escriben
+  solo en `footboard_test`**. Escribir en `footboard` (ETL, heurística) solo con
+  permiso explícito de Alejandro.
+- Tests: `npm test` en `api/` (en serie, contra `footboard_test`); `pytest` en `ml/`.
+- Finales de línea LF (`.gitattributes`, `core.autocrlf input`).
+- No tocar `ml/BaselineModel/` sin revisión de Alejandro.
 
-### Despliegue
-
-Render con auto-deploy desde `main`. Dos fallos que cuestan una tarde:
-- Las variables de entorno van en el panel de Render, no en un `.env` subido.
-- **Atlas debe autorizar los rangos de IP de salida de Render**, no solo la del
-  desarrollador. Si no, funciona en local y falla en producción.
+### Despliegue (Render)
+Variables en el panel de Render, no en un fichero. **Atlas debe autorizar las
+IPs de salida de Render.** El plan gratuito duerme los servicios: calentarlos
+(`/api/health`, `ml /health`) antes de grabar.
 
 ---
 
-## 13. Estado actual
+## 13. Estado actual (21-11-2026)
 
-Tandas 1 y 2 fusionadas en `main` (PR #1); tanda 3 (seed + frontend) fusionada
-en `main` (PR #2). Tanda 4 (ETL de Transfermarkt) en la rama `feat/tanda-4-etl`, sin commit.
+**En `main`** (PR #1 y #2): esqueleto, API con filtros, seed y Explorador.
+**Commit `2953d9a`** (rama `feat/tanda-4-etl`, sin fusionar): ETL de Transfermarkt.
+**Todo lo demás está SIN COMMITEAR** en el directorio de trabajo (rama
+`feat/replay`; las ramas `feat/jwt` … `feat/replay` apuntan al mismo commit):
+heurística, JWT, pipeline de xG, servicio de ML, ingesta, reproductor,
+comparables. Hay que commitear por bloques.
 
-**Hecho (tanda 4, ETL):**
-- `api/scripts/etl/`: `01-competitions` → `05-stats`, `run-all.js`, `wipe.js` y `lib/` (`common.js`: flags, conexión, CSV en streaming con `csv-parse`, clase `Loader`; `normalize.js`: funciones puras). Scripts npm `etl` (`-- --leagues=ES1,...`, ES1 por defecto) y `etl:wipe` (`-- --force`).
-- Probado con LaLiga contra `footboard_test` (Atlas): 1 competición, 33 clubes, 2.272 jugadores, 39.201 valoraciones y 5.070 `SeasonStat`, en ~115 s. Relanzado: 0 insertados (idempotente). Datos comprobados a mano (Lamine Yamal 200 M€, Mbappé 31 goles en 2024-25, 748 jugadores con `lastSeason` ≥ 2025).
-- `api/test/etl.test.js`: 5 pruebas unitarias de `normalize.js`. `npm test`: 27/27.
-- `data/README.md`: de dónde sale cada CSV y cómo lanzar el ETL.
-- **Aún no ejecutado contra `footboard`** (la base real sigue con el seed).
+### Hecho
+- **Datos en `footboard`:** Transfermarkt (5 competiciones, 176 clubes, 11.781
+  jugadores, 191.512 valoraciones, 27.680 `SeasonStat`), `predictedValue` de la
+  heurística (2.445 jugadores), 88.023 `Shot`, 445 `Match` (3 reproducibles) y la
+  final del Mundial 2022 reproducida (120 `MatchEvent`; reproducir con `--reset`
+  para que guarde también `card` y `replacement`, añadidos después).
+- **API:** todo lo de la sección 9. 53 tests de integración (`npm test`), en
+  serie, con helpers `test/helpers/` (`testDb`, `apiServer`, `mlStub`).
+- **ML:** pipeline completo, `serve.py` con 9 tests pytest, explorador de datos.
+- **Reproductor** probado de punta a punta: final del Mundial → 3-3, penaltis
+  4-2, xG 3,07-1,96 (StatsBomb 2,76-2,27).
+- **Web:** login, Explorador (sin arrastre ni CSV), ficha básica.
 
-**Decisiones tomadas en la tanda 4:**
-- Cada script obtiene los `_id` de los padres consultando Mongo (mapa id de Transfermarkt → `_id`), así se pueden lanzar sueltos.
-- `bulkWrite` no ejecuta validadores: cada documento pasa por `new Model(doc).validateSync()` antes; los inválidos se descartan con motivo `validation`.
-- Upsert con `$set` y claves con punto (`externalIds.transfermarkt`), para no pisar `externalIds.fbref` cuando se cargue FBref.
-- Valoraciones duplicadas (mismo jugador y día) en el CSV: se queda la primera.
-- `SeasonStat` solo suma partidos con `competition_type = domestic_league` de las ligas cargadas; la temporada sale de `games.season` ("2023" → "2023-24"). Tarjetas no se guardan (el modelo no tiene campo).
-- Altura fuera de 140–220: se anula el campo pero el jugador se carga (aparece como *nota* en el informe, no como descarte).
-- `predictedValue` no se toca: el Explorador se quedará vacío hasta que exista el modelo (decisión del usuario).
-- Alcance «club actual en una liga cargada»: jugadores históricos que acabaron en otra liga (p. ej. Messi) no entran.
+### Pendiente (reparto)
+- **Compañero (ver `AGENTS.md`):** todo el frontend (diseño y vistas a su
+  criterio), Socket.IO + vista en vivo y usuario simulado. Libertad en la API;
+  no toca `ml/`, el proxy de xG ni la estructura de carpetas.
+- **Alejandro:** commits y PRs; decidir mejoras del xG (restricciones monótonas,
+  indicador femenino/masculino, `freeze_frame`); promocionar la ejecución elegida
+  (`OUTPUT_AI/` está en `.gitignore`); despliegue en Render; guion y grabación del vídeo.
+- Confirmar con el profesor que la temática de fútbol está aprobada por escrito.
 
-**Hecho (preparación del ETL):**
-- `Player` tiene dos campos nuevos: `subPosition` (String) y `lastSeason` (Number, índice). Se pueden enviar en POST/PUT y salen en los listados. El seed no los rellena.
-- Pendiente: el filtro del Explorador que oculta a los retirados (por `lastSeason`) se decide al cargar los datos reales.
-
-**Hecho (tanda 3, parte B: frontend):**
-- `web/`: React 19 + Vite 8 + react-router-dom 7 + axios + Recharts 3. `npm run dev` (puerto 5173, el que admite el CORS de la API) y `npm run build`.
-- `src/api/`: cliente axios único (`client.js`, base `VITE_API_URL`) y módulos por recurso (`players`, `competitions`, `aggregates`; `params.js` traduce los filtros a query string).
-- `src/hooks/useFilters.jsx`: estado global de filtros (Context + `useReducer`) en `FiltersProvider`; `useApi` (carga/error/reintento, aborta la petición anterior) y `useDebouncedValue`.
-- Vista Explorador completa: panel de filtros, scatter real vs. predicho y tabla ordenable, todos con la misma petición. Clic en un punto (o en el nombre en la tabla) abre `/players/:id`.
-- Ficha (`/players/:id`) con datos básicos; Visión general y Comparador son placeholders. Comprobado renderizando con Chrome headless: Explorador en claro y oscuro, ficha y error 400.
-
-**Decisiones tomadas en la tanda 3, parte B:**
-- El Explorador pide `/api/aggregates/undervalued?limit=200` una sola vez, y scatter y tabla comparten esa respuesta (ya trae residuo y nombre del club). Si hay más de 200 jugadores filtrados se avisa en pantalla («Mostrando 200 de N»); solo aparecen jugadores con `predictedValue`.
-- La ordenación de la tabla es estado local de la tabla (en cliente), no un filtro global.
-- Filtros con *debounce* de 300 ms; si edad mínima > máxima se avisa y no se llama a la API. Mientras recarga, la vista mantiene los datos anteriores atenuados.
-- Scatter con **escala logarítmica en ambos ejes** y el mismo dominio (la diagonal queda a 45°). Azul = infravalorado (residuo > 0), rojo = resto; paleta validada para modo claro y oscuro. Puntos con zona de clic de 24 px y tooltip.
-- `vite.config.js` usa `envDir: '..'`: lee `VITE_API_URL` del `.env` único de la raíz. Se añadió esa línea al `.env` local.
-- Si falta `VITE_API_URL`, el cliente falla con un mensaje explícito. Los errores de axios se convierten en «Error <status>: <mensaje de la API>» o «No se pudo conectar con la API».
-- Textos de la interfaz en español; código y comentarios en inglés. Rutas: `/` Explorador, `/players/:playerId`, `/overview`, `/compare`.
-- Sin librería de componentes ni CSS framework: CSS propio con tokens para modo claro/oscuro.
-- Pendiente del Explorador: arrastrar para seleccionar región en el scatter y descarga CSV (sección 10). El bundle pesa 686 kB (Recharts); se puede trocear más adelante.
-
-**Hecho (tanda 3, parte A: seed):**
-- `api/scripts/seed.js` y `npm run seed` (`npm run seed -- --force` para vaciar y recargar). Sigue el patrón del seed de los apuntes.
-- Ejecutado contra Atlas (`footboard`): 3 competiciones, 12 clubes, 120 jugadores, 1168 valoraciones y 467 estadísticas por temporada. Comprobado con curl: `/api/players` y `/api/aggregates/undervalued` devuelven datos.
-
-**Decisiones tomadas en la tanda 3:**
-- Datos **deterministas**: generador aleatorio con semilla fija y fecha de referencia fija (1-7-2026). Cada ejecución produce los mismos datos.
-- Competiciones con códigos de Transfermarkt: `ES1` (LaLiga), `GB1` (Premier League), `IT1` (Serie A). Clubes reales (4 por liga) con un factor de fuerza; **jugadores con nombres ficticios**, para que no pasen por reales.
-- Valor de mercado log-normal: valor «fundamental» según talento, curva de edad (pico 25-26), posición, liga y club. Resultado: mediana 2,8 M€, p90 14,5 M€, máximo 74,5 M€; 78 de 120 por debajo de 5 M€.
-- `currentValue` = fundamental × ruido de mercado (10 % infravalorados, 6 % sobrevalorados, resto ±30 %); `predictedValue` = fundamental × ruido pequeño (±15 %). Así los residuos señalan a los mal tasados por el «mercado».
-- Valoraciones semestrales (1 dic / 1 jun) desde dic-2021, solo desde los 16 años; la última coincide con `currentValue`.
-- Estadísticas de 2022-23 a 2025-26 en la liga actual del club (sin traspasos); minutos y producción por 90 dependen de posición, talento y edad.
-- `--force` vacía las cinco colecciones; sin él, el script no toca una base que tenga datos en cualquiera de ellas.
-
-**Hecho (tanda 2, rutas):**
-- Routers de la sección 9 en `api/routes/`: `competitions`, `clubs`, `players`, `valuations`, `stats`, `aggregates`, `predictions`, montados en `app.js`.
-- `api/middleware/filters.js`: `parseFilters` (parsea una vez a `req.filters`), `buildSort` (lista blanca por recurso), `buildPlayerFilter` y `pageResponse`.
-- `router.param` en `competitionId`, `clubId` y `playerId`: carga el recurso una vez (`req.competition`, `req.club`, `req.player`) y devuelve 404 si no pertenece al padre de la URL.
-- `/api/predictions/value` es un stub: devuelve `{ predictedValue: 10000000, shapValues: {}, stub: true }`.
-- Pruebas de integración en `api/test/api.test.js` (22 casos, `npm test`). Pasan contra un `mongod` temporal y, desde el 15-11-2026, contra la base `_test` de Atlas.
-
-**Decisiones tomadas en la tanda 2:**
-- Nuevo campo `Player.predictedValue` (euros). Sin él no hay residuos que servir. Lo escribirá el job de scoring offline; la API **no** lo acepta en POST/PUT.
-- `residual = predictedValue − currentValue`, calculado en el aggregation pipeline. `undervalued` y `summary` solo cuentan jugadores con ambos valores.
-- `summary` devuelve `players`, `scoredPlayers`, `totalMarketValue`, `maeEuros` y `meanResidual`, y respeta los mismos filtros.
-- Las listas responden `{ data, page, limit, total, totalPages }`. `limit` por encima de 200 se recorta a 200; valores no numéricos o `page < 1` dan 400.
-- Los filtros que no aplican a un recurso se ignoran (p. ej. `competition` en `/clubs/:id/players`, donde el club ya fija la competición). Un `competition` desconocido no devuelve nada. `position` admite lista separada por comas.
-- Valores de query que no son strings (`?position[$ne]=GK`) dan 400, para evitar inyección de operadores.
-- `sort` solo acepta campos de una lista blanca por recurso (400 si no); `_id` es el desempate para paginar de forma estable.
-- `GET /api/clubs` y `GET /api/players` son colecciones globales (con los filtros transversales) que coexisten con las anidadas. Los POST siguen solo en las anidadas: `POST /api/clubs` y `POST /api/players` dan 404. El padre nunca se puede cambiar por PUT.
-- En la global de clubes solo aplica `competition`; `position`, `minAge`, `maxAge` y `maxValue` no tienen sentido para clubes y se ignoran. En las anidadas `competition` se ignora, porque la URL ya fija el padre.
-- `PUT` actualiza solo los campos enviados (con `runValidators`) y da 400 si no llega ninguno válido.
-- `DELETE` responde 204. Borrar un jugador borra en cascada sus valoraciones y estadísticas. Borrar un club con jugadores, o una competición con clubes, da **409**.
-- Finales de línea: `.gitattributes` con `* text=auto eol=lf` y `core.autocrlf input` en el repo, para que Windows y WSL no vean cambios fantasma por CRLF.
-- `asyncHandler` reenvía argumentos extra para poder usarlo en `router.param`.
-- Valoraciones y estadísticas van en `routes/valuations.js` y `routes/stats.js`, no en `players.js`.
-- Las pruebas vacían las colecciones con `deleteMany` (no `dropDatabase`) y se niegan a correr si la base no acaba en `_test`.
-
-**Hecho (tanda 1):**
-- Estructura de carpetas del repo (`api/`, `web/`, `ml/`, `data/`).
-- `api/`: `app.js` (conexión a Atlas, CORS, manejador central de errores, `/api/health`), `bin/www`, `package.json`, `Dockerfile`.
-- Los cinco modelos de Mongoose con validaciones e índices (`api/models/`).
-- Utilidades `asyncHandler`, `httpError` y `pick` (`api/utils/`).
-- `.env.example` (un único `.env` en la raíz), `.gitignore` y `docker-compose.yml` (`api`, `web`, `ml`).
-
-**Decisiones tomadas en la tanda 1:**
-- Índices únicos parciales sobre `externalIds.transfermarkt` y `externalIds.fbref` en `Club` y `Player`, como clave natural del ETL.
-- `SeasonStat.season` valida el formato `^\d{4}-\d{2}$`; `Competition.tier` tiene mínimo 1.
-- Clave duplicada (11000) responde **409**; los errores responden `{ error: "..." }`.
-- Docker Compose sin servicio de Mongo (la base es Atlas).
-- `ml/requirements.txt` con versiones fijadas (las últimas de PyPI a 2026-10-27; compatibilidad entre ellas sin verificar hasta construir la imagen).
-- `data/` está en `.gitignore`: las muestras congeladas **no se versionan**. Hay que documentar en el README cómo obtenerlas para que el proyecto siga siendo reproducible.
-
-**Pendiente:**
-- ETL, resto del frontend (ficha, comparador, visión general, selección por arrastre, CSV) y servicio ML.
-- `docker compose` aún no construye `ml`: falta `ml/serve.py` con el modelo.
-- **Credenciales de Atlas**: `MONGODB_URI` (base `footboard`) y `MONGODB_URI_TEST` funcionan; las 22 pruebas pasan contra Atlas (15-11-2026).
-- ETL: vaciar `footboard` y cargar LaLiga, después las cinco ligas (`npm run etl:wipe -- --force` y `npm run etl -- --leagues=...`).
-- Extracción de FBref con `soccerdata` (sección 6) y tabla de equivalencias con Transfermarkt.
-- Requisitos de la tutoría (sección 14): JWT (obligatorio), script de usuario simulado por la API y, como extra, simulación de partido en tiempo real.
-
-Pendiente de confirmar con el profesor: que la temática de fútbol está aprobada
-por escrito. (La autenticación ya está confirmada: JWT obligatorio, ver 14.1.)
+### Decisiones abiertas
+- Lecturas de la API públicas o privadas (ahora privadas: hay login).
+- Ordenar el ranking de infravalorados por residuo relativo.
+- `worst_predictions.csv` ordenado por diferencia frente a StatsBomb.
 
 ---
 
 ## 14. Requisitos añadidos tras la tutoría (29-10-2026)
 
-Tres peticiones del profesor que no estaban en el enunciado original.
+### 14.1 Autenticación con JWT — obligatorio, hecho
+Modelo `User` (bcrypt, nunca en claro), `register`/`login` devuelven el token,
+middleware `requireAuth` (401 si falta, es inválido o caducó), secreto en el
+`.env` (≥ 32 bytes), caducidad 1 h, interceptor de axios. Se protege **toda** la
+API salvo `/api/health` y `/api/auth`.
 
-### 14.1 Autenticación con JWT — obligatorio
-
-Token firmado con **caducidad determinada**. Flujo estándar:
-
-- `POST /api/auth/register` y `POST /api/auth/login` devuelven el token
-- El cliente lo envía en cada petición: `Authorization: Bearer <token>`
-- Un middleware lo verifica antes de las rutas protegidas y responde **401**
-  si falta, es inválido o ha caducado
-
-Implicaciones:
-- Modelo `User` nuevo, con contraseña hasheada con `bcrypt`. **Nunca en claro.**
-- Librería `jsonwebtoken`. El secreto va en el `.env`, no en el código.
-- El cliente axios del frontend debe adjuntar el token.
-- El script de usuario simulado (14.2) debe autenticarse primero.
-
-Decidir qué rutas se protegen: como mínimo las de escritura (POST, PUT, DELETE).
-
-### 14.2 Datos que entran por la API — confirmado el alcance
-
-El profesor pidió que los datos entraran por la API y no directos a Mongo.
-**Consultado y aceptado el enfoque mixto.** Son dos scripts distintos:
-
+### 14.2 Datos que entran por la API — enfoque mixto aceptado
 | Script | Vía | Para qué |
 | --- | --- | --- |
-| ETL de carga masiva | Mongoose directo, `bulkWrite` | Los ~192.000 registros reales |
-| Usuario simulado | axios → endpoints de la API | Demostrar que la API es usable |
+| ETL de carga masiva | Mongoose directo, `bulkWrite` | Los ~200.000 registros reales |
+| Usuario simulado (**pendiente**, `api/scripts/simulate-user.js`) | HTTP → API | Demostrar que la API es usable |
+| Reproductor (hecho) | HTTP → API | Tiempo real (14.3) |
 
-Motivo: 191.754 valoraciones una a una por HTTP serían horas, y el beneficio
-(ejercitar los endpoints) se consigue igual con un subconjunto.
+El usuario simulado: se autentica, **crea** datos claramente ficticios,
+**consulta** con filtros, **modifica** y **borra** todo lo que creó.
 
-El script simulado debe: autenticarse con JWT, crear, consultar con filtros,
-modificar y borrar. Que use **datos claramente ficticios** y limpie lo que ha
-creado al terminar, para no mezclarlos con los reales de Transfermarkt.
+### 14.3 Procesamiento en tiempo real — parte central
+`api/scripts/replay.js` reproduce un partido ya jugado:
+`npm run replay -- --match=<id> [--speed=60] [--reset]` (credenciales
+`REPLAY_EMAIL`/`REPLAY_PASSWORD`).
+- Envía solo los tipos útiles: `Shot`, `Own Goal For/Against`, `Foul Committed`,
+  `Bad Behaviour`, `Substitution` y `Pass` con `shot_assist` o `goal_assist`
+  (~105-133 de ~4.000 eventos por partido), en orden de `index`.
+- Espera la respuesta de cada POST; vuelve a hacer login solo tras un 401.
+- Marcador: cuentan los goles en propia puerta (`Own Goal For` va al equipo que
+  se beneficia); la tanda de penaltis (`period` 5) se informa aparte en
+  `shootout` y no cuenta ni en el marcador ni en el xG acumulado.
+- **Socket.IO (pendiente, lo diseña el compañero):** idea orientativa: una sala
+  por partido, avisar tras cada evento nuevo (201) y, al reconectar, recuperar lo
+  perdido con `GET /events?after=<sequence>`. Pistas en `AGENTS.md` §5.
 
-### 14.3 Procesamiento en tiempo real — "extra importante"
+Partidos de la demo (`ml/config.yaml`, forzados a test en el xG): 3869685
+Argentina-Francia (final del Mundial 2022), 2302764 Milan-Liverpool (final de
+Champions 2005), 3825700 Real Madrid-Rayo Vallecano (10-2, La Liga 2015-16).
 
-El enunciado original giraba en torno a sensores que emiten continuamente. Como
-el fútbol no da eso de forma natural, el profesor sugirió **simularlo**: un
-script que reproduce los eventos de un partido ya jugado respetando su orden
-temporal, y los va metiendo por la API como si llegaran en directo.
+---
 
-No es un pilar del proyecto, pero inclina la nota y es lo que más acerca la
-propuesta al espíritu del enunciado. **Prioridad: por encima de la fase de
-vídeo, por debajo del ETL y del modelo principal.**
+## 15. Fuera de alcance (decidido, no reabrir)
 
-Si se aborda, hace falta:
-- Modelo `MatchEvent` (minuto, tipo, jugador, equipo, coordenadas)
-- Endpoints para recibirlos
-- Script reproductor con factor de aceleración (90 min → 90 s en la demo)
-- Que el frontend se entere sin recargar: **WebSockets** (Socket.IO) antes que
-  *polling*, porque es lo que de verdad parece tiempo real
-- Una vista en vivo: campo con los eventos apareciendo y marcador
+Detección de jugadores en vídeo · FBref · modelo XGBoost de valor de mercado
+(mejora opcional de la heurística si sobra tiempo) · modelo histórico de valor ·
+modelo de predicción de resultado en vivo · Optuna hasta cerrar las features.
 
-**Idea candidata, no decidida:** un segundo modelo que prediga el resultado del
-partido en vivo a partir del estado (marcador, minuto, tiros, tarjetas,
-expulsiones) y actualice la probabilidad en pantalla conforme llegan eventos.
-Es un modelo distinto del de valor de mercado, aunque también XGBoost. Se puede
-entrenar con eventos históricos reconstruyendo "en el minuto 60 iba 1-0 y acabó
-2-1". Si se usa Football-Data, sus cuotas sirven de *baseline* para comparar.
-
-Fuente de datos candidata para esto: eventos de StatsBomb, o el dataset de tiros
-ya preparado en Hugging Face (`statsbomb-open-data-shots`), que trae coordenadas,
-distancia, ángulo, parte del cuerpo y xG, con los splits hechos.
+Entrega: **vídeo, 18-12-2026**.
