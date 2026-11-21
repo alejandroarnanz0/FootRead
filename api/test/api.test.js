@@ -22,11 +22,14 @@ const SeasonStat = require('../models/SeasonStat');
 
 let server;
 let base;
+let token; // set in before(); every api() call sends it
 
-const api = async (method, url, body) => {
+const api = async (method, url, body, { auth = true } = {}) => {
+  const headers = { 'content-type': 'application/json' };
+  if (auth && token) headers.authorization = `Bearer ${token}`;
   const res = await fetch(base + url, {
     method,
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return { status: res.status, body: res.status === 204 ? null : await res.json() };
@@ -51,6 +54,54 @@ describe('API', () => {
     server = http.createServer(app).listen(0);
     await new Promise((resolve) => server.once('listening', resolve));
     base = `http://127.0.0.1:${server.address().port}`;
+    const reg = await api('POST', '/api/auth/register', { email: 'tester@example.com', password: 'secret-pass' });
+    assert.equal(reg.status, 201);
+    token = reg.body.token;
+  });
+
+  describe('auth', () => {
+    it('registers (201), hides the hash and rejects a duplicate email (409) or a short password (400)', async () => {
+      const res = await api('POST', '/api/auth/register', { email: 'Other@Example.com ', password: 'longenough' });
+      assert.equal(res.status, 201);
+      assert.equal(res.body.user.email, 'other@example.com');
+      assert.equal(res.body.user.passwordHash, undefined);
+      assert.ok(res.body.token);
+      assert.equal((await api('POST', '/api/auth/register', { email: 'other@example.com', password: 'longenough' })).status, 409);
+      assert.equal((await api('POST', '/api/auth/register', { email: 'x@example.com', password: 'short' })).status, 400);
+    });
+
+    it('logs in, and answers 401 with the same message for a wrong password or an unknown email', async () => {
+      const ok = await api('POST', '/api/auth/login', { email: 'tester@example.com', password: 'secret-pass' });
+      assert.equal(ok.status, 200);
+      const me = await fetch(base + '/api/auth/me', { headers: { authorization: `Bearer ${ok.body.token}` } });
+      assert.equal((await me.json()).email, 'tester@example.com');
+      const wrong = await api('POST', '/api/auth/login', { email: 'tester@example.com', password: 'nope-nope' });
+      const unknown = await api('POST', '/api/auth/login', { email: 'ghost@example.com', password: 'nope-nope' });
+      assert.equal(wrong.status, 401);
+      assert.equal(unknown.status, 401);
+      assert.equal(wrong.body.error, unknown.body.error);
+    });
+
+    it('needs a valid, unexpired token to read and to write; health stays public', async () => {
+      assert.equal((await api('GET', '/api/health', undefined, { auth: false })).status, 200);
+      assert.equal((await api('GET', '/api/competitions', undefined, { auth: false })).status, 401);
+      assert.equal((await api('GET', '/api/players', undefined, { auth: false })).status, 401);
+      assert.equal((await api('POST', '/api/competitions', { code: 'Z1', name: 'Z' }, { auth: false })).status, 401);
+      const bad = await fetch(base + '/api/competitions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer not.a.token' },
+        body: '{}',
+      });
+      assert.equal(bad.status, 401);
+      const jwt = require('jsonwebtoken');
+      const expired = jwt.sign({ sub: 'x' }, process.env.JWT_SECRET, { expiresIn: -10 });
+      const res = await fetch(base + '/api/competitions/aaaaaaaaaaaaaaaaaaaaaaaa', {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${expired}` },
+      });
+      assert.equal(res.status, 401);
+      assert.equal((await res.json()).error, 'Token expired');
+    });
   });
 
   after(async () => {

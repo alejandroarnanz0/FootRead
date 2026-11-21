@@ -199,6 +199,9 @@ h2 {
 }
 
 input[type='number'],
+input[type='text'],
+input[type='email'],
+input[type='password'],
 select {
   font: inherit;
   color: var(--text);
@@ -483,4 +486,46 @@ button {
   margin: 2px 0 0;
   font-size: 20px;
   font-weight: 600;
+}
+
+/* --- Session / login --- */
+
+.session {
+  margin-left: auto;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  text-decoration: none;
+}
+
+.muted-inline {
+  color: var(--text-2);
+}
+
+.auth-page {
+  display: flex;
+  justify-content: center;
+  padding-top: 48px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.primary-button {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

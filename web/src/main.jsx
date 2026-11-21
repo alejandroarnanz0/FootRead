@@ -4,14 +4,17 @@ import { BrowserRouter } from 'react-router-dom';
 
 import App from './App.jsx';
 import { FiltersProvider } from './hooks/useFilters.jsx';
+import { AuthProvider } from './hooks/useAuth.jsx';
 import './index.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <FiltersProvider>
-        <App />
-      </FiltersProvider>
+      <AuthProvider>
+        <FiltersProvider>
+          <App />
+        </FiltersProvider>
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>
 );
