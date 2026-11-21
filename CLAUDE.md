@@ -282,15 +282,18 @@ React + Vite en `web/`. Un **único cliente axios** (`src/api/client.js`, base
 `VITE_API_URL`, adjunta el token y ante un 401 manda a `/login`); llamadas
 agrupadas por recurso en `src/api/`. **Estado global** de filtros (`useFilters`)
 y de sesión (`useAuth`); `useApi` para carga, error y reintento. Estados de
-carga, error **y vacío** explícitos en cada vista. CSS propio con tokens para
-modo claro y oscuro; textos en español, código en inglés.
+carga, error **y vacío** explícitos en cada vista. CSS propio con un sistema
+visual compartido: tema oscuro principal y tema claro mediante
+`prefers-color-scheme`; `PageHeader` y `Button` para elementos comunes.
+La navegación pública muestra el acceso y oculta las áreas protegidas hasta
+iniciar sesión. Textos en español, código en inglés.
 
 ### Vistas
 
 | Ruta | Vista | Estado |
 | --- | --- | --- |
-| `/login` | Entrar o registrarse | Hecha |
-| `/` | **Explorador**: scatter real vs. referencia (log-log, diagonal), filtros, tabla ordenable; clic → ficha | Hecha salvo arrastre y CSV |
+| `/login` | Entrar o registrarse, con la identidad visual de Footboard | Hecha |
+| `/` | **Explorador**: scatter real vs. referencia (log-log, diagonal), filtros, tabla ordenable; clic → ficha | Identidad visual aplicada; faltan arrastre y CSV |
 | `/players/:id` | **Ficha**: perfil, serie de valor, estadísticas por temporada, comparables | Básica |
 | `/live/:matchId` | **Partido en vivo**: campo con tiros escalados por xG, marcador, xG acumulado | Pendiente |
 | `/overview` | **Visión general**: KPIs y top infravalorados | Placeholder |
@@ -429,7 +432,10 @@ comparables. Hay que commitear por bloques.
 - **ML:** pipeline completo, `serve.py` con 9 tests pytest, explorador de datos.
 - **Reproductor** probado de punta a punta: final del Mundial → 3-3, penaltis
   4-2, xG 3,07-1,96 (StatsBomb 2,76-2,27).
-- **Web:** login, Explorador (sin arrastre ni CSV), ficha básica.
+- **Web:** sistema visual global con tema oscuro principal y tema claro por
+  `prefers-color-scheme`, aplicado al Explorador y a Login/Register.
+  `PageHeader` y `Button` son reutilizables; la navegación pública oculta
+  las áreas protegidas hasta iniciar sesión. Ficha básica; faltan arrastre y CSV.
 
 ### Pendiente (reparto)
 - **Compañero (ver `AGENTS.md`):** todo el frontend (diseño y vistas a su

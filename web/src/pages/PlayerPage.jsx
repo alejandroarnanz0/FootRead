@@ -1,12 +1,11 @@
 import { Link, useParams } from 'react-router-dom';
 
 import { getPlayer } from '../api/players.js';
-import { ErrorMessage, Loading } from '../components/Status.jsx';
+import PageHeader from '../components/PageHeader.jsx';
+import { ErrorMessage, Loading, Notice } from '../components/Status.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { ageFrom, formatEuros, formatResidual, POSITION_LABELS } from '../format.js';
 
-// Placeholder: basic data only. Valuation series, season stats and the SHAP
-// breakdown come in a later batch.
 export default function PlayerPage() {
   const { playerId } = useParams();
   const { data: player, error, retry } = useApi((signal) => getPlayer(playerId, signal), [playerId]);
@@ -27,19 +26,17 @@ export default function PlayerPage() {
         <Loading>Cargando jugador…</Loading>
       ) : (
         <>
-          <header className="page-head">
-            <h1>{player.name}</h1>
-            <p className="muted">
-              {POSITION_LABELS[player.position]} · {ageFrom(player.birthDate) ?? '—'} años
-            </p>
-          </header>
+          <PageHeader
+            title={player.name}
+            description={`${POSITION_LABELS[player.position]} · ${ageFrom(player.birthDate) ?? '—'} años`}
+          />
           <dl className="facts card">
             <div>
               <dt>Valor real</dt>
               <dd>{formatEuros(player.currentValue)}</dd>
             </div>
             <div>
-              <dt>Valor predicho</dt>
+              <dt>Referencia por comparables</dt>
               <dd>{formatEuros(player.predictedValue)}</dd>
             </div>
             <div>
@@ -51,10 +48,7 @@ export default function PlayerPage() {
               </dd>
             </div>
           </dl>
-          <p className="notice">
-            Ficha en construcción: aquí irán la serie temporal de su valoración, sus estadísticas por temporada y el
-            desglose SHAP del modelo.
-          </p>
+          <Notice>Ficha en construcción. Próximamente incluirá el historial de valor, las estadísticas y los jugadores comparables.</Notice>
         </>
       )}
     </div>

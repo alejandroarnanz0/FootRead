@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth.jsx';
+import Button from '../components/Button.jsx';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
@@ -32,7 +33,16 @@ export default function LoginPage() {
 
   return (
     <div className="page auth-page">
-      <form className="card auth-card" onSubmit={submit}>
+      <div className="auth-intro">
+        <p>Scouting y analítica de fútbol basada en datos.</p>
+        <div className="auth-pitch" aria-hidden="true">
+          <span className="auth-pitch-area auth-pitch-area-start" />
+          <span className="auth-pitch-area auth-pitch-area-end" />
+          <span className="auth-pitch-point auth-pitch-point-first" />
+          <span className="auth-pitch-point auth-pitch-point-second" />
+        </div>
+      </div>
+      <form id="auth-form" className="card auth-card" tabIndex={-1} onSubmit={submit}>
         <h1>{isRegister ? 'Crear cuenta' : 'Iniciar sesión'}</h1>
         {location.state?.expired && !error && (
           <p className="muted">Tu sesión ha caducado. Vuelve a entrar.</p>
@@ -62,19 +72,18 @@ export default function LoginPage() {
 
         {error && <p className="field-error" role="alert">{error}</p>}
 
-        <button type="submit" className="primary-button" disabled={sending}>
+        <Button type="submit" variant="primary" disabled={sending}>
           {sending ? 'Enviando…' : isRegister ? 'Crear cuenta' : 'Entrar'}
-        </button>
-        <button
-          type="button"
-          className="link-button"
+        </Button>
+        <Button
+          variant="quiet"
           onClick={() => {
             setMode(isRegister ? 'login' : 'register');
             setError(null);
           }}
         >
           {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
-        </button>
+        </Button>
       </form>
     </div>
   );

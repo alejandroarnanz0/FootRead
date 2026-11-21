@@ -14,8 +14,7 @@ import { formatEuros, formatResidual, POSITION_LABELS } from '../format.js';
 // 1-3-10 steps: enough ticks to read a log scale without crowding it.
 const TICKS = [1e4, 3e4, 1e5, 3e5, 1e6, 3e6, 1e7, 3e7, 1e8, 3e8];
 
-// Both axes share one log domain, so the diagonal sits at 45 degrees and
-// "above the line" means the model values the player above the market.
+// Both axes share one log domain. Above the line, the reference exceeds market value.
 function sharedDomain(players) {
   const values = players.flatMap((p) => [p.currentValue, p.predictedValue]);
   return [Math.min(...values) / 1.5, Math.max(...values) * 1.5];
@@ -32,27 +31,30 @@ function PlayerTooltip({ active, payload }) {
         {POSITION_LABELS[p.position]} · {p.club ? p.club.name : 'Sin club'}
       </span>
       <span className="tooltip-meta">
-        Real {formatEuros(p.currentValue)} · Predicho {formatEuros(p.predictedValue)}
+        Mercado {formatEuros(p.currentValue)} · Referencia {formatEuros(p.predictedValue)}
       </span>
       <span className="tooltip-hint">Clic para abrir la ficha</span>
     </div>
   );
 }
 
-// Visible 9px dot with a surface ring, inside a transparent 24px hit area.
+// Distinct shapes share the same 24px hit area.
 const dotShape = (kind, onSelect) =>
   function Dot({ cx, cy, payload }) {
     return (
       <g className={`dot dot-${kind}`} onClick={() => onSelect(payload)}>
         <circle className="dot-hit" cx={cx} cy={cy} r={12} />
-        <circle className="dot-mark" cx={cx} cy={cy} r={4.5} />
+        {kind === 'under' && <circle className="dot-mark" cx={cx} cy={cy} r={4.5} />}
+        {kind === 'over' && <rect className="dot-mark" x={cx - 4.5} y={cy - 4.5} width={9} height={9} />}
+        {kind === 'neutral' && <path className="dot-mark" d={`M ${cx} ${cy - 6} l 6 6 -6 6 -6 -6 Z`} />}
       </g>
     );
   };
 
 export default function ValueScatter({ players, onSelect }) {
   const under = players.filter((p) => p.residual > 0);
-  const over = players.filter((p) => p.residual <= 0);
+  const over = players.filter((p) => p.residual < 0);
+  const neutral = players.filter((p) => p.residual === 0);
   const [lo, hi] = sharedDomain(players);
   const ticks = TICKS.filter((t) => t >= lo && t <= hi);
 
@@ -61,39 +63,43 @@ export default function ValueScatter({ players, onSelect }) {
       <ul className="legend" aria-label="Leyenda">
         <li>
           <span className="swatch swatch-under" aria-hidden="true" />
-          Infravalorados: el modelo los tasa por encima del mercado ({under.length})
+          Por debajo de su referencia ({under.length})
         </li>
         <li>
           <span className="swatch swatch-over" aria-hidden="true" />
-          Sobrevalorados o en precio ({over.length})
+          Por encima de su referencia ({over.length})
+        </li>
+        <li>
+          <span className="swatch swatch-neutral" aria-hidden="true" />
+          En su referencia ({neutral.length})
         </li>
       </ul>
 
-      <ResponsiveContainer width="100%" height={440}>
-        <ScatterChart margin={{ top: 8, right: 16, bottom: 36, left: 8 }}>
+      <p className="chart-axis-title">Referencia por comparables ↑</p>
+      <ResponsiveContainer width="100%" height="100%" className="chart-frame">
+        <ScatterChart margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
           <CartesianGrid />
           <XAxis
             type="number"
             dataKey="currentValue"
-            name="Valor real"
+            name="Valor de mercado"
             scale="log"
             domain={[lo, hi]}
             ticks={ticks}
             allowDataOverflow
             tickFormatter={formatEuros}
-            label={{ value: 'Valor real de mercado', position: 'insideBottom', offset: -24 }}
+            minTickGap={16}
           />
           <YAxis
             type="number"
             dataKey="predictedValue"
-            name="Valor predicho"
+            name="Referencia por comparables"
             scale="log"
             domain={[lo, hi]}
             ticks={ticks}
             allowDataOverflow
-            width={76}
+            width={60}
             tickFormatter={formatEuros}
-            label={{ value: 'Valor predicho por el modelo', angle: -90, position: 'insideLeft', offset: 4, dy: 90 }}
           />
           <ReferenceLine
             className="diagonal"
@@ -106,12 +112,14 @@ export default function ValueScatter({ players, onSelect }) {
           <Tooltip cursor={false} content={<PlayerTooltip />} isAnimationActive={false} />
           <Scatter name="Infravalorados" data={under} shape={dotShape('under', onSelect)} isAnimationActive={false} />
           <Scatter name="Sobrevalorados" data={over} shape={dotShape('over', onSelect)} isAnimationActive={false} />
+          <Scatter name="En su referencia" data={neutral} shape={dotShape('neutral', onSelect)} isAnimationActive={false} />
         </ScatterChart>
       </ResponsiveContainer>
+      <p className="chart-axis-title chart-axis-title-x">Valor de mercado →</p>
 
       <figcaption>
-        Escala logarítmica en ambos ejes. La diagonal marca dónde mercado y modelo coinciden: cuanto más
-        por encima de ella, más infravalorado está el jugador.
+        Ambos ejes usan escala logarítmica. Sobre la diagonal, la referencia supera al valor de mercado.
+        También puedes abrir cada ficha desde la tabla.
       </figcaption>
     </figure>
   );

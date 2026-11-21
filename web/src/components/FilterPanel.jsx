@@ -3,6 +3,7 @@ import { useApi } from '../hooks/useApi.js';
 import { useFilters, validateFilters } from '../hooks/useFilters.jsx';
 import { POSITION_LABELS } from '../format.js';
 import { ErrorMessage } from './Status.jsx';
+import Button from './Button.jsx';
 
 const toNumber = (text) => (text === '' ? null : Number(text));
 const show = (value) => (value === null ? '' : value);
@@ -16,9 +17,9 @@ export default function FilterPanel() {
     <aside className="filters card" aria-label="Filtros">
       <div className="filters-head">
         <h2>Filtros</h2>
-        <button type="button" className="link-button" onClick={resetFilters}>
+        <Button variant="quiet" onClick={resetFilters}>
           Limpiar
-        </button>
+        </Button>
       </div>
 
       <fieldset>

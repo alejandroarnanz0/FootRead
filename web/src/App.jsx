@@ -8,6 +8,7 @@ import NotFoundPage from './pages/NotFoundPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import { useAuth } from './hooks/useAuth.jsx';
 import { Loading } from './components/Status.jsx';
+import Button from './components/Button.jsx';
 
 // Every view needs a session (the API rejects anonymous reads too). Without one,
 // go to login and come back here afterwards.
@@ -25,6 +26,9 @@ function SessionArea() {
   const location = useLocation();
   if (checking) return null;
   if (!user) {
+    if (location.pathname === '/login') {
+      return <a className="session" href="#auth-form">Acceso</a>;
+    }
     return (
       <Link className="session" to="/login" state={{ from: location.pathname }}>
         Iniciar sesión
@@ -34,24 +38,35 @@ function SessionArea() {
   return (
     <span className="session">
       <span className="muted-inline">{user.name || user.email}</span>
-      <button type="button" className="link-button" onClick={logout}>
+      <Button variant="quiet" onClick={logout}>
         Salir
-      </button>
+      </Button>
     </span>
   );
 }
 
 export default function App() {
+  const { user, checking } = useAuth();
+  const showNavigation = !checking && Boolean(user);
+
   return (
     <div className="app">
       <header className="app-header">
-        <span className="brand">Footboard</span>
-        <nav>
-          <NavLink to="/" end>Explorador</NavLink>
-          <NavLink to="/overview">Visión general</NavLink>
-          <NavLink to="/compare">Comparador</NavLink>
-        </nav>
-        <SessionArea />
+        <div className={showNavigation ? 'app-header-inner' : 'app-header-inner app-header-public'}>
+          {showNavigation ? (
+            <>
+              <Link className="brand" to="/">Footboard</Link>
+              <nav aria-label="Navegación principal">
+                <NavLink to="/" end>Explorador</NavLink>
+                <NavLink to="/overview">Visión general</NavLink>
+                <NavLink to="/compare">Comparador</NavLink>
+              </nav>
+            </>
+          ) : (
+            <span className="brand">Footboard</span>
+          )}
+          <SessionArea />
+        </div>
       </header>
       <main className="app-main">
         <Routes>
