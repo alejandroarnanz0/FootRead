@@ -64,7 +64,7 @@ Requisitos añadidos por el profesor en la tutoría del 29-10-2026: sección 14.
 - **Servicio ML** (`ml/serve.py`): aparte, porque XGBoost y SHAP no existen en Node.
 - **Reproductor** (`api/scripts/replay.js`): envía por la API los eventos de un
   partido ya jugado respetando su ritmo (sección 14.3).
-- **React**: pide datos con axios; la vista en vivo escuchará el WebSocket.
+- **React**: pide datos con axios. La vista en vivo consulta los eventos por REST.
 
 ---
 
@@ -295,7 +295,7 @@ iniciar sesión. Textos en español, código en inglés.
 | `/login` | Entrar o registrarse, con la identidad visual de Footboard | Hecha |
 | `/` | **Explorador**: scatter real vs. referencia (log-log, diagonal), filtros, tabla ordenable; clic → ficha | Identidad visual aplicada; faltan arrastre y CSV |
 | `/players/:id` | **Ficha**: perfil, serie de valor, estadísticas por temporada, comparables | Básica |
-| `/live/:matchId` | **Partido en vivo**: campo con tiros escalados por xG, marcador, xG acumulado | Pendiente |
+| `/live/:matchId` | **Partido en vivo**: marcador, feed de eventos, mapa de tiros interactivo y evolución del xG | Disponible con actualización por REST |
 | `/overview` | **Visión general**: KPIs y top infravalorados | Placeholder |
 | `/compare` | **Comparador** de 2-3 jugadores | Placeholder |
 | `/model` | **El modelo de xG**: las gráficas de evaluación con una frase cada una | Pendiente |
@@ -436,10 +436,12 @@ comparables. Hay que commitear por bloques.
   `prefers-color-scheme`, aplicado al Explorador y a Login/Register.
   `PageHeader` y `Button` son reutilizables; la navegación pública oculta
   las áreas protegidas hasta iniciar sesión. Ficha básica; faltan arrastre y CSV.
+- **Partido en vivo:** `/live/:matchId` lee la ficha y sigue el replay por REST.
+  Marcador, mapa, feed y gráfico se actualizan a partir de los mismos eventos.
 
 ### Pendiente (reparto)
 - **Compañero (ver `AGENTS.md`):** todo el frontend (diseño y vistas a su
-  criterio), Socket.IO + vista en vivo y usuario simulado. Libertad en la API;
+  criterio), Socket.IO y usuario simulado. Libertad en la API;
   no toca `ml/`, el proxy de xG ni la estructura de carpetas.
 - **Alejandro:** commits y PRs; decidir mejoras del xG (restricciones monótonas,
   indicador femenino/masculino, `freeze_frame`); promocionar la ejecución elegida
@@ -482,6 +484,9 @@ El usuario simulado: se autentica, **crea** datos claramente ficticios,
 - Marcador: cuentan los goles en propia puerta (`Own Goal For` va al equipo que
   se beneficia); la tanda de penaltis (`period` 5) se informa aparte en
   `shootout` y no cuenta ni en el marcador ni en el xG acumulado.
+- La web consulta `GET /api/matches/:matchId/events` cada dos segundos tras
+  cada respuesta. La lista completa permite detectar un reinicio del replay.
+  LIVE indica recepción reciente de eventos, sin confirmar el estado del emisor.
 - **Socket.IO (pendiente, lo diseña el compañero):** idea orientativa: una sala
   por partido, avisar tras cada evento nuevo (201) y, al reconectar, recuperar lo
   perdido con `GET /events?after=<sequence>`. Pistas en `AGENTS.md` §5.

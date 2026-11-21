@@ -6,6 +6,7 @@ import ComparePage from './pages/ComparePage.jsx';
 import OverviewPage from './pages/OverviewPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import LiveMatchPage from './pages/LiveMatchPage.jsx';
 import { useAuth } from './hooks/useAuth.jsx';
 import { Loading } from './components/Status.jsx';
 import Button from './components/Button.jsx';
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="/compare" element={<RequireAuth><ComparePage /></RequireAuth>} />
           <Route path="/overview" element={<RequireAuth><OverviewPage /></RequireAuth>} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/live/:matchId" element={<RequireAuth><LiveMatchPage /></RequireAuth>} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
