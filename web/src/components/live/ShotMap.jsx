@@ -1,10 +1,11 @@
 import { clock, formatXg, shotOutcome, teamSide } from './matchData.js';
+import { teamLabel } from '../../matchLabels.js';
 
 function ShotDetails({ event }) {
   return (
     <>
       <strong>{event.playerName || 'Tiro sin jugador registrado'}</strong>
-      <span>{event.team} · {clock(event)}</span>
+      <span>{teamLabel(event.team)} · {clock(event)}</span>
       <span>{shotOutcome(event)} · xG {formatXg(event.xg)}</span>
     </>
   );
@@ -30,7 +31,7 @@ export default function ShotMap({ match, shots, selected, newestShot, onSelect }
             <button key={event._id ?? event.sequence} type="button"
               className={`live-shot live-${side}${event.isGoal ? ' live-shot-goal' : ''}${active ? ' live-shot-selected' : ''}${newestShot?.sequence === event.sequence ? ' live-shot-new' : ''}${x > 60 ? ' live-shot-right' : ''}${y > 40 ? ' live-shot-low' : ''}`}
               style={{ left: `${(x + 4) / 128 * 100}%`, top: `${(y + 4) / 88 * 100}%`, '--shot-size': `${9 + Math.sqrt(event.xg ?? 0) * 16}px` }}
-              aria-label={`${event.playerName || 'Tiro'}, ${event.team}, ${clock(event)}, ${shotOutcome(event)}, xG ${formatXg(event.xg)}`}
+              aria-label={`${event.playerName || 'Tiro'}, ${teamLabel(event.team)}, ${clock(event)}, ${shotOutcome(event)}, xG ${formatXg(event.xg)}`}
               aria-pressed={active} onClick={() => onSelect(event)}>
               <span className="live-shot-mark" aria-hidden="true" />
               <span className="live-shot-tooltip" aria-hidden="true"><ShotDetails event={event} /></span>
@@ -40,8 +41,8 @@ export default function ShotMap({ match, shots, selected, newestShot, onSelect }
         {shots.length === 0 && <span className="live-pitch-empty">Sin tiros para mostrar</span>}
       </div>
       <div className="live-map-legend">
-        <span className="live-home"><i aria-hidden="true" />{match.homeTeam}</span>
-        <span className="live-away"><i aria-hidden="true" />{match.awayTeam}</span>
+        <span className="live-home"><i aria-hidden="true" />{teamLabel(match.homeTeam)}</span>
+        <span className="live-away"><i aria-hidden="true" />{teamLabel(match.awayTeam)}</span>
         <span className="live-key-goal"><i aria-hidden="true" />Gol</span>
         <span className="live-key-selected"><i aria-hidden="true" />Seleccionado</span>
         <span className="live-key-xg">Tamaño según xG</span>
@@ -50,7 +51,7 @@ export default function ShotMap({ match, shots, selected, newestShot, onSelect }
         <div className={`live-selected-shot live-${teamSide(selected, match)}`}>
           <div>
             <strong>{selected.playerName || 'Tiro sin jugador registrado'}</strong>
-            <span>{selected.team} · {clock(selected)}</span>
+            <span>{teamLabel(selected.team)} · {clock(selected)}</span>
           </div>
           <span className="live-selected-outcome">{shotOutcome(selected)}</span>
           <span className="live-selected-xg"><small>xG</small><b>{formatXg(selected.xg)}</b></span>

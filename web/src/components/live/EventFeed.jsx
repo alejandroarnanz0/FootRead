@@ -1,4 +1,5 @@
 import { Notice } from '../Status.jsx';
+import { teamLabel } from '../../matchLabels.js';
 import { clock, eventLabel, formatXg, isGoal, SHOOTOUT, shotOutcome } from './matchData.js';
 
 const cardColors = {
@@ -33,7 +34,7 @@ export default function EventFeed({ events, animated, newest, selected, onSelect
                     </span>
                     {event.playerName && <strong>{event.playerName}{event.replacement && ` → ${event.replacement}`}</strong>}
                     <span className="live-event-meta">
-                      {event.team}{shot && (!event.isGoal || event.period === SHOOTOUT) && ` · ${shotOutcome(event)}`}
+                      {teamLabel(event.team)}{shot && (!event.isGoal || event.period === SHOOTOUT) && ` · ${shotOutcome(event)}`}
                     </span>
                   </span>
                   {(shot || newest?.sequence === event.sequence) && (

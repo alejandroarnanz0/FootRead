@@ -35,7 +35,14 @@ router.get(
       Match.find(filter).select(LIST_SELECT).sort({ matchDate: -1, matchId: 1 }).skip(f.skip).limit(f.limit).lean(),
       Match.countDocuments(filter),
     ]);
-    res.json(pageResponse(data, total, f));
+    // The replay file flag does not indicate whether a replay has recorded events.
+    const counts = data.length ? await MatchEvent.aggregate([
+      { $match: { matchId: { $in: data.map((match) => match.matchId) } } },
+      { $group: { _id: '$matchId', count: { $sum: 1 } } },
+    ]) : [];
+    const byMatch = new Map(counts.map(({ _id, count }) => [_id, count]));
+    const catalog = data.map((match) => ({ ...match, eventCount: byMatch.get(match.matchId) ?? 0 }));
+    res.json(pageResponse(catalog, total, f));
   })
 );
 

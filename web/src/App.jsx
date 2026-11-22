@@ -1,15 +1,18 @@
+import { lazy, Suspense } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
-import ExplorerPage from './pages/ExplorerPage.jsx';
 import PlayerPage from './pages/PlayerPage.jsx';
 import ComparePage from './pages/ComparePage.jsx';
-import OverviewPage from './pages/OverviewPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-import LiveMatchPage from './pages/LiveMatchPage.jsx';
 import { useAuth } from './hooks/useAuth.jsx';
 import { Loading } from './components/Status.jsx';
 import Button from './components/Button.jsx';
+
+const ExplorerPage = lazy(() => import('./pages/ExplorerPage.jsx'));
+const OverviewPage = lazy(() => import('./pages/OverviewPage.jsx'));
+const LiveMatchPage = lazy(() => import('./pages/LiveMatchPage.jsx'));
+const MatchesPage = lazy(() => import('./pages/MatchesPage.jsx'));
 
 // Every view needs a session (the API rejects anonymous reads too). Without one,
 // go to login and come back here afterwards.
@@ -18,7 +21,7 @@ function RequireAuth({ children }) {
   const location = useLocation();
   if (checking) return <Loading />;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  return children;
+  return <Suspense fallback={<Loading>Cargando vista…</Loading>}>{children}</Suspense>;
 }
 
 // The header shows who is logged in, or a link to log in.
@@ -48,7 +51,10 @@ function SessionArea() {
 
 export default function App() {
   const { user, checking } = useAuth();
+  const location = useLocation();
   const showNavigation = !checking && Boolean(user);
+  const atMatches = location.pathname === '/matches';
+  const inMatch = location.pathname.startsWith('/live/');
 
   return (
     <div className="app">
@@ -60,6 +66,8 @@ export default function App() {
               <nav aria-label="Navegación principal">
                 <NavLink to="/" end>Explorador</NavLink>
                 <NavLink to="/overview">Visión general</NavLink>
+                <Link to="/matches" className={atMatches || inMatch ? 'active' : undefined}
+                  aria-current={atMatches ? 'page' : undefined}>Partidos</Link>
                 <NavLink to="/compare">Comparador</NavLink>
               </nav>
             </>
@@ -75,6 +83,7 @@ export default function App() {
           <Route path="/players/:playerId" element={<RequireAuth><PlayerPage /></RequireAuth>} />
           <Route path="/compare" element={<RequireAuth><ComparePage /></RequireAuth>} />
           <Route path="/overview" element={<RequireAuth><OverviewPage /></RequireAuth>} />
+          <Route path="/matches" element={<RequireAuth><MatchesPage /></RequireAuth>} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/live/:matchId" element={<RequireAuth><LiveMatchPage /></RequireAuth>} />
           <Route path="*" element={<NotFoundPage />} />

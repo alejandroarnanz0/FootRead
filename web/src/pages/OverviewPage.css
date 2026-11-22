@@ -1,0 +1,141 @@
+.overview-page {
+  display: grid;
+  gap: clamp(24px, 4vw, 48px);
+  max-width: 1240px;
+  margin-inline: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-intro {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-5) 0 var(--space-4);
+  border-top: 3px solid var(--accent);
+}
+
+.overview-intro .page-head { margin: 0; }
+.overview-intro h1 { font-size: clamp(2.15rem, 4.8vw, 4rem); }
+.overview-page .button { text-decoration: none; white-space: nowrap; }
+.overview-intro .button span { margin-inline-start: 6px; color: var(--accent); }
+.overview-market { display: grid; min-width: 0; gap: var(--space-4); }
+.overview-market > h2 { font-size: clamp(1.2rem, 2vw, 1.55rem); letter-spacing: -0.02em; }
+
+.overview-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+  gap: 1px;
+  background-color: var(--border);
+}
+
+.overview-kpis > div {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: clamp(12px, 2vw, 24px);
+  background: var(--surface);
+}
+
+.overview-kpis dt { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-weight: 650; min-height: 28px; }
+.overview-kpis dt svg {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--accent);
+  background: var(--page);
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  fill: none;
+}
+.overview-kpis dd { margin: 0; font-size: clamp(1.65rem, 3.3vw, 3.1rem); font-weight: 750; letter-spacing: -0.055em; line-height: 1.08; }
+.overview-kpis dd small { display: block; margin-top: 7px; font-size: 0.78rem; font-weight: 500; letter-spacing: normal; line-height: 1.35; }
+.overview-kpis > div:nth-child(3) dd { color: var(--accent); }
+.overview-kpis small, .overview-player small, .overview-rank { color: var(--muted); }
+.overview-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.overview-ranking-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--space-3); }
+.overview-ranking-heading { border-bottom: 1px solid var(--border); padding-bottom: var(--space-3); }
+.overview-ranking-heading h3 { margin-bottom: var(--space-2); }
+.overview-ranking-heading h3 + .muted { margin-top: 0; }
+@media (min-width: 741px) {
+  .overview-ranking-panel { grid-row: span 2; grid-template-rows: subgrid; }
+}
+.overview-distributions { grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); }
+.overview-panel { min-width: 0; padding: clamp(14px, 2vw, 24px); }
+.overview-panel h3 { font-size: 1.05rem; margin: 0 0 var(--space-3); }
+.overview-panel h3 + .muted { margin-top: -4px; max-width: 59ch; }
+.overview-position-list, .overview-ranking { list-style: none; margin: 0; padding: 0; }
+.overview-position-list { display: grid; gap: 4px; margin-inline: -8px; }
+.overview-position-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 9px 10px; padding: 12px 8px; border-radius: var(--radius-control); }
+.overview-position-list li:hover { background: var(--hover); }
+.overview-position-total { display: flex; align-items: baseline; gap: 10px; }
+.overview-position-total small { color: var(--muted); }
+.overview-position-total strong { min-width: 5ch; text-align: end; }
+.overview-position-list .overview-meter { grid-column: 1 / -1; height: 7px; background: var(--surface-raised); }
+.overview-position-list .overview-meter i { background: color-mix(in srgb, var(--accent) 70%, var(--neutral)); }
+.overview-meter { display: block; height: 6px; border-radius: 5px; background: var(--grid); overflow: hidden; }
+.overview-meter i { display: block; height: 100%; border-radius: inherit; background: var(--neutral); }
+.overview-age-chart { height: 206px; min-width: 0; }
+.overview-age-footer { display: flex; flex-wrap: wrap; gap: 5px 16px; justify-content: space-between; align-items: start; border-top: 1px solid var(--border); padding-top: 8px; font-size: 0.8rem; }
+.overview-age-footer .muted { margin: 0; }
+.overview-age-footer summary { cursor: pointer; color: var(--link); }
+.overview-age-values { display: grid; gap: 2px; margin: 8px 0 0; }
+.overview-age-values div { display: flex; justify-content: space-between; gap: 16px; }
+.overview-age-values dd { margin: 0; font-weight: 650; }
+.overview-age-chart .recharts-tooltip-item { color: var(--text) !important; }
+.overview-ranking-scroll {
+  block-size: 23.5rem;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--control-border) var(--surface);
+}
+.overview-ranking-scroll:focus-visible { outline-offset: 1px; }
+.overview-ranking li + li { border-top: 1px solid var(--border); }
+.overview-ranking a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-block-size: 3.75rem;
+  padding: 5px 8px;
+  border-radius: var(--radius-control);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.overview-ranking a:hover, .overview-ranking a:focus-visible { background: var(--hover); }
+.overview-ranking a:focus-visible { outline-offset: -2px; }
+.overview-rank { width: 2ch; align-self: baseline; font-size: 0.75rem; }
+.overview-player { min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.overview-player strong { font-size: 0.95rem; }
+.overview-player .overview-meter { height: 4px; margin-block: 2px; }
+.overview-ranking-value { white-space: nowrap; font-size: 0.925rem; text-align: end; }
+.overview-scouting .overview-ranking b { color: var(--accent); }
+.overview-scouting .overview-meter i { background: var(--accent); }
+
+.overview-ranking-status { padding: 8px 4px 4px; font-size: 0.8125rem; }
+.overview-ranking-status > .muted { margin: 0; }
+
+@media (max-width: 740px) {
+  .overview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .overview-kpis dt { min-height: 42px; align-items: start; }
+  .overview-columns { grid-template-columns: minmax(0, 1fr); }
+  .overview-ranking-scroll { block-size: min(23.5rem, 48svh); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .overview-kpis > div, .overview-position-list li, .overview-ranking a { transition: background-color 150ms ease-out; }
+}
+
+.overview-kpis > div:hover { background: var(--surface-raised); }

@@ -263,10 +263,10 @@ con `trim`, fechas a `Date` UTC, valores en euros enteros.
 | GET | `/api/players/:id/stats` | Estadísticas por temporada |
 | GET | `/api/players/:id/comparables` | Los comparables de la heurística (solo lectura) |
 | GET | `/api/aggregates/undervalued` | Ranking por residuo, con filtros |
-| GET | `/api/aggregates/summary` | KPIs (jugadores, MAE, residuo medio), con filtros |
+| GET | `/api/aggregates/summary` | KPIs (jugadores, MAE, residuo medio, valor medio y cobertura) y distribuciones por posición y edad, con filtros |
 | POST | `/api/predictions/xg` | Proxy al servicio de ML: un tiro en bruto o `{ shots: [...] }` |
 | POST | `/api/predictions/value` | Stub antiguo, sin uso |
-| GET | `/api/matches` | Partidos reproducibles |
+| GET | `/api/matches` | Catálogo de partidos marcados para replay, con el número de eventos registrados por partido |
 | GET | `/api/matches/:matchId` | Ficha del partido |
 | GET/POST/DELETE | `/api/matches/:matchId/events` | Eventos (`?after=<sequence>`, `?raw=true`) / recibir uno crudo de StatsBomb / limpiar |
 | GET | `/api/matches/:matchId/state` | Marcador, xG acumulado, tanda de penaltis, minuto |
@@ -296,7 +296,8 @@ iniciar sesión. Textos en español, código en inglés.
 | `/` | **Explorador**: scatter real vs. referencia (log-log, diagonal), filtros, tabla ordenable; clic → ficha | Identidad visual aplicada; faltan arrastre y CSV |
 | `/players/:id` | **Ficha**: perfil, serie de valor, estadísticas por temporada, comparables | Básica |
 | `/live/:matchId` | **Partido en vivo**: marcador, feed de eventos, mapa de tiros interactivo y evolución del xG | Disponible con actualización por REST |
-| `/overview` | **Visión general**: KPIs y top infravalorados | Placeholder |
+| `/overview` | **Visión general**: KPIs, distribuciones y rankings paginados de mercado y scouting | Disponible |
+| `/matches` | **Partidos**: catálogo de replays con búsqueda por equipo, filtros por competición y eventos y orden por fecha | Disponible |
 | `/compare` | **Comparador** de 2-3 jugadores | Placeholder |
 | `/model` | **El modelo de xG**: las gráficas de evaluación con una frase cada una | Pendiente |
 
@@ -306,6 +307,28 @@ filtros mueven a la vez scatter, tabla y KPIs · descarga CSV del subconjunto.
 
 La heurística se presenta como **"referencia por comparables"**, nunca como
 "predicción" ni "modelo".
+
+### Visión general y Partidos
+
+- **Visión general** toma los totales, el valor medio y las distribuciones por
+  posición y edad de `GET /api/aggregates/summary`. El KPI de competiciones
+  usa el total de `GET /api/competitions`. La media excluye a los jugadores cuyo
+  valor de mercado no está registrado.
+- **Rankings:** mayor valor de mercado (`GET /api/players`) y oportunidades de
+  scouting (`GET /api/aggregates/undervalued`). El segundo ordena por diferencia
+  positiva entre la referencia por comparables y el valor de mercado. Cada
+  lista tiene su propio scroll vertical, empieza con seis jugadores y pide
+  otra página al acercarse al final. Conserva el orden recibido, deduplica por
+  ID y permite reintentar una página fallida sin descartar las filas cargadas.
+- **Partidos** abre la ruta protegida y de carga diferida `/matches`, que monta
+  `MatchesSection`. El catálogo reúne las páginas de `GET /api/matches` antes
+  de aplicar la búsqueda por equipo, los filtros por competición y eventos y
+  el orden por fecha. Muestra resultados por tandas de ocho y distingue carga,
+  error y ausencia de resultados. Cada fila enlaza a `/live/:matchId`.
+- **Centro de partido:** sincroniza marcador, cronología, mapa de tiros y
+  evolución del xG a partir de los eventos recibidos. Las fichas sin eventos
+  conservan la información del encuentro y muestran el marcador como no
+  disponible. Los breadcrumbs permiten volver a Partidos o a Visión general.
 
 ---
 
@@ -414,12 +437,9 @@ IPs de salida de Render.** El plan gratuito duerme los servicios: calentarlos
 
 ## 13. Estado actual (21-11-2026)
 
-**En `main`** (PR #1 y #2): esqueleto, API con filtros, seed y Explorador.
-**Commit `2953d9a`** (rama `feat/tanda-4-etl`, sin fusionar): ETL de Transfermarkt.
-**Todo lo demás está SIN COMMITEAR** en el directorio de trabajo (rama
-`feat/replay`; las ramas `feat/jwt` … `feat/replay` apuntan al mismo commit):
-heurística, JWT, pipeline de xG, servicio de ML, ingesta, reproductor,
-comparables. Hay que commitear por bloques.
+La API, JWT, la heurística, el servicio de xG y el reproductor forman parte de
+la base previa. La fase de Visión general y Partidos amplía las consultas de
+lectura y la navegación sobre el centro de partido existente.
 
 ### Hecho
 - **Datos en `footboard`:** Transfermarkt (5 competiciones, 176 clubes, 11.781
@@ -438,6 +458,9 @@ comparables. Hay que commitear por bloques.
   las áreas protegidas hasta iniciar sesión. Ficha básica; faltan arrastre y CSV.
 - **Partido en vivo:** `/live/:matchId` lee la ficha y sigue el replay por REST.
   Marcador, mapa, feed y gráfico se actualizan a partir de los mismos eventos.
+- **Visión general:** resumen de mercado agregado en MongoDB y rankings
+  con carga progresiva y acceso a fichas.
+- **Partidos:** catálogo de replays en una ruta propia, con filtros y búsqueda.
 
 ### Pendiente (reparto)
 - **Compañero (ver `AGENTS.md`):** todo el frontend (diseño y vistas a su
@@ -486,10 +509,20 @@ El usuario simulado: se autentica, **crea** datos claramente ficticios,
   `shootout` y no cuenta ni en el marcador ni en el xG acumulado.
 - La web consulta `GET /api/matches/:matchId/events` cada dos segundos tras
   cada respuesta. La lista completa permite detectar un reinicio del replay.
-  LIVE indica recepción reciente de eventos, sin confirmar el estado del emisor.
-- **Socket.IO (pendiente, lo diseña el compañero):** idea orientativa: una sala
-  por partido, avisar tras cada evento nuevo (201) y, al reconectar, recuperar lo
-  perdido con `GET /events?after=<sequence>`. Pistas en `AGENTS.md` §5.
+  LIVE requiere que el último evento tenga un `receivedAt` válido y de hace
+  menos de 15 segundos. La cabecera distingue actividad reciente del replay,
+  eventos históricos y fichas sin eventos. Un fallo de consulta se muestra
+  por separado y puede reintentarse.
+- El catálogo distingue entre partidos con y sin eventos registrados mediante
+  `eventCount`; `available` indica que el ETL encontró el archivo al importar
+  el catálogo. El listado no certifica marcador final, tanda ni actividad.
+  El detalle espera el replay si no hay eventos y muestra el marcador
+  acumulado cuando llegan. Para reproducir otro encuentro, obtener su JSON
+  según `data/README.md` y ejecutar el reproductor contra una base autorizada.
+- **Socket.IO (fase posterior):** la web sigue usando polling REST. Idea
+  orientativa: una sala por partido, avisar tras cada evento nuevo (201) y, al
+  reconectar, recuperar lo perdido con `GET /events?after=<sequence>`.
+  Pistas en `AGENTS.md` §5.
 
 Partidos de la demo (`ml/config.yaml`, forzados a test en el xG): 3869685
 Argentina-Francia (final del Mundial 2022), 2302764 Milan-Liverpool (final de
