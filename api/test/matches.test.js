@@ -64,6 +64,8 @@ describe('matches', () => {
     const list = await srv.api('GET', '/api/matches');
     assert.equal(list.status, 200);
     assert.deepEqual(list.body.data.map((m) => m.matchId), [ID]);
+    assert.equal(list.body.data[0].eventCount, 0);
+    assert.deepEqual((await srv.api('GET', `/api/matches/${ID}/events`)).body, { data: [], total: 0 });
     const one = await srv.api('GET', `/api/matches/${ID}`);
     assert.equal(one.body.homeTeam, HOME);
     assert.equal((await srv.api('GET', '/api/matches/999')).status, 404);
@@ -87,6 +89,9 @@ describe('matches', () => {
     assert.equal(again.status, 200);
     assert.equal(ml.calls.length, calls); // not recomputed
     assert.equal(await MatchEvent.countDocuments({ matchId: ID }), 1);
+    const catalog = (await srv.api('GET', '/api/matches')).body.data;
+    assert.equal(catalog[0].eventCount, 1);
+    assert.equal(catalog[0].score, undefined);
   });
 
   it('keeps ingesting with xg: null when the ML service is down', async () => {
@@ -145,5 +150,6 @@ describe('matches', () => {
     const empty = (await srv.api('GET', `/api/matches/${ID}/state`)).body;
     assert.deepEqual(empty.score, { home: 0, away: 0 });
     assert.equal(empty.shootout, null);
+    assert.equal((await srv.api('GET', '/api/matches')).body.data[0].eventCount, 0);
   });
 });

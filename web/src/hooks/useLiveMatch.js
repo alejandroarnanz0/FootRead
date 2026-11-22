@@ -3,9 +3,13 @@ import { getMatch, getMatchEvents } from '../api/matches.js';
 
 const POLL_MS = 2000;
 const LIVE_WINDOW_MS = 15000;
-const EMPTY = { match: null, events: [], error: null, activity: null };
+const EMPTY = { match: null, events: [], eventsLoaded: false, error: null, activity: null };
 
 const eventKey = (event) => event._id ?? event.sequence;
+function receiptAge(event, now) {
+  const received = Date.parse(event?.receivedAt);
+  return Number.isFinite(received) && received <= now ? now - received : null;
+}
 
 export function useLiveMatch(matchId) {
   const [snapshot, setSnapshot] = useState(EMPTY);
@@ -29,21 +33,30 @@ export function useLiveMatch(matchId) {
     async function refresh() {
       let retryable = true;
       try {
-        match ??= await getMatch(matchId, signal);
+        if (!match) {
+          match = await getMatch(matchId, signal);
+          if (signal.aborted) return;
+          // Show the match details while its first event request is still pending.
+          setSnapshot((current) => ({ ...current, match, error: null }));
+        }
         const events = await getMatchEvents(matchId, signal);
         if (signal.aborted) return;
 
         // The full list also detects a replay reset, even when sequences repeat.
         const known = new Set(previous?.map(eventKey));
-        const added = previous ? events.filter((event) => !known.has(eventKey(event))) : [];
+        const time = Date.now();
+        const added = previous ? events.filter((event) => {
+          const age = receiptAge(event, time);
+          return !known.has(eventKey(event)) && age !== null && age < LIVE_WINDOW_MS;
+        }) : [];
         const currentKeys = new Set(events.map(eventKey));
         const reset = previous?.some((event) => !currentKeys.has(eventKey(event)));
-        const time = Date.now();
         previous = events;
         setNow(time);
         setSnapshot((current) => ({
           match,
           events,
+          eventsLoaded: true,
           error: null,
           activity: added.length ? { events: added, at: time } : reset ? null : current.activity,
         }));
@@ -63,11 +76,9 @@ export function useLiveMatch(matchId) {
   }, [matchId, attempt]);
 
   const last = snapshot.events.at(-1);
-  const received = Date.parse(last?.receivedAt);
-  const elapsed = Number.isFinite(received) ? Math.max(0, now - received) : null;
+  const elapsed = receiptAge(last, now);
   const activityAge = snapshot.activity ? Math.max(0, now - snapshot.activity.at) : Infinity;
-  const live = !snapshot.error && Boolean(last) &&
-    (activityAge < LIVE_WINDOW_MS || (elapsed !== null && elapsed < LIVE_WINDOW_MS));
+  const live = !snapshot.error && elapsed !== null && elapsed < LIVE_WINDOW_MS;
 
   return { ...snapshot, elapsed, activityAge, live, retry: () => setAttempt((value) => value + 1) };
 }

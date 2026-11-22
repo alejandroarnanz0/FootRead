@@ -312,11 +312,18 @@ describe('API', () => {
       const s = (await api('GET', '/api/aggregates/summary')).body;
       assert.equal(s.players, 4);
       assert.equal(s.scoredPlayers, 3);
+      assert.equal(s.valuedPlayers, 4);
+      assert.equal(s.averageMarketValue, 14.5e6 / 4);
+      assert.deepEqual(s.positions, { FW: 2, DF: 1, GK: 1 });
+      assert.deepEqual(s.ageDistribution.map(({ count }) => count), [1, 1, 0, 0, 1, 1]);
       assert.equal(s.maeEuros, 7.5e6 / 3);
       assert.equal(s.meanResidual, 5.5e6 / 3);
       const empty = (await api('GET', '/api/aggregates/summary?competition=NOPE')).body;
       assert.equal(empty.players, 0);
       assert.equal(empty.maeEuros, null);
+      assert.equal(empty.averageMarketValue, null);
+      assert.deepEqual(empty.positions, {});
+      assert.ok(empty.ageDistribution.every(({ count }) => count === 0));
     });
 
     it('serves the prediction stub', async () => {

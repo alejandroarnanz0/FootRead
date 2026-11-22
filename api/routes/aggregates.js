@@ -8,8 +8,12 @@ const { parseFilters, buildSort, buildPlayerFilter, pageResponse } = require('..
 const router = express.Router();
 
 const SORT_FIELDS = ['residual', 'currentValue', 'predictedValue', 'birthDate', 'name'];
+const AGE_BOUNDARIES = [0, 21, 24, 27, 30, 33];
+const dateNumber = (date) => ({
+  $toInt: { $dateToString: { date, format: '%Y%m%d', timezone: 'UTC' } },
+});
 
-// Players that have both a market value and a model prediction.
+// Players with both a market value and a comparable-based reference.
 const scored = (match) => ({
   ...match,
   currentValue: { ...match.currentValue, $type: 'number' },
@@ -65,8 +69,7 @@ router.get(
   })
 );
 
-// Header KPIs over the filtered players. The model error is the MAE in euros
-// over the scored players only.
+// KPIs and distributions over the filtered players.
 router.get(
   '/summary',
   parseFilters,
@@ -77,16 +80,34 @@ router.get(
     };
     const residual = { $subtract: ['$predictedValue', '$currentValue'] };
 
-    const [r] = await Player.aggregate([
+    const [{ totals: [r], positions, ages }] = await Player.aggregate([
       { $match: match },
       {
-        $group: {
-          _id: null,
-          players: { $sum: 1 },
-          totalMarketValue: { $sum: { $ifNull: ['$currentValue', 0] } },
-          scoredPlayers: { $sum: { $cond: [isScored, 1, 0] } },
-          absResidualSum: { $sum: { $cond: [isScored, { $abs: residual }, 0] } },
-          residualSum: { $sum: { $cond: [isScored, residual, 0] } },
+        $facet: {
+          totals: [{
+            $group: {
+              _id: null,
+              players: { $sum: 1 },
+              totalMarketValue: { $sum: { $ifNull: ['$currentValue', 0] } },
+              averageMarketValue: { $avg: '$currentValue' },
+              valuedPlayers: { $sum: { $cond: [{ $isNumber: '$currentValue' }, 1, 0] } },
+              scoredPlayers: { $sum: { $cond: [isScored, 1, 0] } },
+              absResidualSum: { $sum: { $cond: [isScored, { $abs: residual }, 0] } },
+              residualSum: { $sum: { $cond: [isScored, residual, 0] } },
+            },
+          }],
+          positions: [{ $group: { _id: '$position', count: { $sum: 1 } } }],
+          ages: [
+            { $match: { birthDate: { $type: 'date', $lte: new Date() } } },
+            {
+              // Subtract YYYYMMDD values before dividing to account for birthdays.
+              $bucket: {
+                groupBy: { $floor: { $divide: [{ $subtract: [dateNumber('$$NOW'), dateNumber('$birthDate')] }, 10000] } },
+                boundaries: AGE_BOUNDARIES,
+                default: 33,
+              },
+            },
+          ],
         },
       },
     ]);
@@ -96,6 +117,14 @@ router.get(
       players: r ? r.players : 0,
       scoredPlayers,
       totalMarketValue: r ? r.totalMarketValue : 0,
+      averageMarketValue: r?.averageMarketValue ?? null,
+      valuedPlayers: r?.valuedPlayers ?? 0,
+      positions: Object.fromEntries(positions.map(({ _id, count }) => [_id, count])),
+      ageDistribution: AGE_BOUNDARIES.map((min, index) => ({
+        min,
+        max: AGE_BOUNDARIES[index + 1] ? AGE_BOUNDARIES[index + 1] - 1 : null,
+        count: ages.find(({ _id }) => _id === min)?.count ?? 0,
+      })),
       maeEuros: scoredPlayers ? r.absResidualSum / scoredPlayers : null,
       meanResidual: scoredPlayers ? r.residualSum / scoredPlayers : null,
     });

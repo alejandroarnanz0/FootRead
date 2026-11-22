@@ -33,6 +33,32 @@
   margin-bottom: 0;
 }
 
+.match-breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 0.8125rem;
+}
+
+.match-breadcrumbs li {
+  overflow-wrap: anywhere;
+}
+
+.match-breadcrumbs li + li::before {
+  content: '›' / '';
+  margin-inline-end: 10px;
+  color: var(--muted);
+}
+
+.match-breadcrumbs [aria-current] {
+  color: var(--text);
+  font-weight: 650;
+}
+
 .live-board {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -152,6 +178,34 @@
   gap: var(--space-1);
   color: var(--text-2);
   font-size: 0.75rem;
+}
+
+.live-score-grid-empty {
+  grid-template-columns: minmax(0, 1fr) minmax(76px, auto) minmax(0, 1fr);
+}
+
+.live-score-grid-empty .live-team {
+  display: block;
+}
+
+.live-empty-score {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+
+.live-empty-score > span {
+  padding: 3px 7px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-control);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.live-empty-score small {
+  max-width: 13ch;
+  line-height: 1.2;
 }
 
 .live-clock strong {

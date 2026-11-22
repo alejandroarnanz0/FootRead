@@ -1,5 +1,6 @@
 import { CartesianGrid, Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Notice } from '../Status.jsx';
+import { teamLabel } from '../../matchLabels.js';
 import { formatXg } from './matchData.js';
 
 function TimelineTooltip({ active, payload, label }) {
@@ -22,8 +23,8 @@ export default function XgTimeline({ match, summary, selection, latest }) {
       {hasXg ? (
         <>
           <div className="live-chart-legend">
-            <span className="live-home">{match.homeTeam}</span>
-            <span className="live-away">{match.awayTeam}</span>
+            <span className="live-home">{teamLabel(match.homeTeam)}</span>
+            <span className="live-away">{teamLabel(match.awayTeam)}</span>
           </div>
           <div className="live-chart">
             <ResponsiveContainer width="100%" height="100%">
@@ -32,8 +33,8 @@ export default function XgTimeline({ match, summary, selection, latest }) {
                 <XAxis dataKey="time" type="number" domain={[0, 'dataMax + 1']} tickFormatter={(time) => `${Math.floor(time)}′`} />
                 <YAxis width={40} allowDecimals />
                 <Tooltip content={<TimelineTooltip />} />
-                <Line type="stepAfter" dataKey="home" name={match.homeTeam} stroke="var(--live-home)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                <Line type="stepAfter" dataKey="away" name={match.awayTeam} stroke="var(--live-away)" strokeWidth={2.5} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
+                <Line type="stepAfter" dataKey="home" name={teamLabel(match.homeTeam)} stroke="var(--live-home)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                <Line type="stepAfter" dataKey="away" name={teamLabel(match.awayTeam)} stroke="var(--live-away)" strokeWidth={2.5} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
                 {latest && <ReferenceDot key={latest.sequence} className="live-xg-new" x={latest.time} y={latest[latest.side]} r={7} fill={`var(--live-${latest.side})`} stroke="var(--surface)" strokeWidth={2} />}
                 {selection && <ReferenceDot className="live-xg-selected" x={selection.time} y={selection[selection.side]} r={10} fill="none" stroke="var(--text)" strokeWidth={2} />}
               </LineChart>
