@@ -1,4 +1,4 @@
-const teams = new Map([['France', 'Francia']]);
+const teams = new Map([['France', 'Francia'], ['Spain', 'España']]);
 const competitions = new Map([
   ['FIFA World Cup', 'Copa Mundial de la FIFA'],
   ['Champions League', 'Liga de Campeones'],

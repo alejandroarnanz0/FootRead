@@ -1,0 +1,38 @@
+[
+  {
+    "type": "national",
+    "id": "3375",
+    "name": "España",
+    "file": "national-teams/espana-rfef.svg",
+    "source": "https://commons.wikimedia.org/wiki/File:Royal_Spanish_Football_Federation_logo.svg",
+    "author": "Real Federación Española de Fútbol",
+    "license": "Dominio público · PD-textlogo",
+    "terms": "https://commons.wikimedia.org/wiki/Template:PD-textlogo",
+    "status": "verified",
+    "verifiedOn": "2026-11-22",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/e/ea/Royal_Spanish_Football_Federation_logo.svg",
+    "sha256": "1fff08c3264921801b741bbda9b7cd4393ff566f9ca9ad118b807dd967c91e99",
+    "bytes": 1374,
+    "width": 512,
+    "height": 512,
+    "restrictions": "trademarked"
+  },
+  {
+    "type": "national",
+    "id": "10521",
+    "name": "San Marino",
+    "file": "national-teams/san-marino.png",
+    "source": "https://commons.wikimedia.org/wiki/File:San_Marino_national_football_team_logo.png",
+    "author": "Federación Sanmarinense de Fútbol",
+    "license": "Dominio p?blico ? San Marino",
+    "terms": "https://commons.wikimedia.org/wiki/File:San_Marino_national_football_team_logo.png",
+    "status": "verified",
+    "verifiedOn": "2026-11-22",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/4/40/San_Marino_national_football_team_logo.png",
+    "sha256": "013fc2908b95adc7c244c08519915e4108a71ceef915a28e773e477898504285",
+    "bytes": 13485,
+    "width": 150,
+    "height": 150,
+    "date": "2004-11-13"
+  }
+]

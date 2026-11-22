@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ageFrom, formatEuros, formatResidual } from '../format.js';
+import PlayerAvatar from './visual/PlayerAvatar.jsx';
+import { ClubCrest } from './visual/TeamBadge.jsx';
 
 const collator = new Intl.Collator('es');
 
@@ -66,9 +68,12 @@ export default function PlayersTable({ players }) {
                 if (c.key === 'name') {
                   return (
                     <td key={c.key}>
-                      <Link to={`/players/${p._id}`}>{p.name}</Link>
+                      <Link className="identity-inline" to={`/players/${p._id}`}><PlayerAvatar player={p} decorative />{p.name}</Link>
                     </td>
                   );
+                }
+                if (c.key === 'club' && p.club?.name) {
+                  return <td key={c.key}><span className="identity-inline"><ClubCrest club={p.club} decorative />{value}</span></td>;
                 }
                 if (c.key === 'residual') {
                   const tone = value > 0 ? ' value-under' : value < 0 ? ' value-over' : '';

@@ -257,7 +257,7 @@ con `trim`, fechas a `Date` UTC, valores en euros enteros.
 | GET | `/api/clubs` | Todos los clubes (filtro `competition`) |
 | GET/PUT/DELETE | `/api/clubs/:id` | Ficha |
 | GET/POST | `/api/clubs/:id/players` | Jugadores de un club / crear |
-| GET | `/api/players` | Todos los jugadores, con filtros |
+| GET | `/api/players` | Todos los jugadores, con filtros y búsqueda por nombre (`q`, hasta 80 caracteres, ignora mayúsculas y diacríticos latinos) |
 | GET/PUT/DELETE | `/api/players/:id` | Ficha (`DELETE` en cascada) |
 | GET | `/api/players/:id/valuations` | Histórico de valor |
 | GET | `/api/players/:id/stats` | Estadísticas por temporada |
@@ -294,11 +294,11 @@ iniciar sesión. Textos en español, código en inglés.
 | --- | --- | --- |
 | `/login` | Entrar o registrarse, con la identidad visual de Footboard | Hecha |
 | `/` | **Explorador**: scatter real vs. referencia (log-log, diagonal), filtros, tabla ordenable; clic → ficha | Identidad visual aplicada; faltan arrastre y CSV |
-| `/players/:id` | **Ficha**: perfil, serie de valor, estadísticas por temporada, comparables | Básica |
+| `/players/:id` | **Ficha**: perfil con retrato, escudo, club, liga, edad y cifras de mercado | Disponible. Historial, estadísticas y comparables en ficha pendientes |
 | `/live/:matchId` | **Partido en vivo**: marcador, feed de eventos, mapa de tiros interactivo y evolución del xG | Disponible con actualización por REST |
 | `/overview` | **Visión general**: KPIs, distribuciones y rankings paginados de mercado y scouting | Disponible |
 | `/matches` | **Partidos**: catálogo de replays con búsqueda por equipo, filtros por competición y eventos y orden por fecha | Disponible |
-| `/compare` | **Comparador** de 2-3 jugadores | Placeholder |
+| `/compare` | **Comparador** de dos jugadores, con mercado, referencias y estadísticas de liga por temporada | Disponible |
 | `/model` | **El modelo de xG**: las gráficas de evaluación con una frase cada una | Pendiente |
 
 ### Manipulación directa (requisito)
@@ -329,6 +329,47 @@ La heurística se presenta como **"referencia por comparables"**, nunca como
   evolución del xG a partir de los eventos recibidos. Las fichas sin eventos
   conservan la información del encuentro y muestran el marcador como no
   disponible. Los breadcrumbs permiten volver a Partidos o a Visión general.
+
+### Comparador de jugadores
+
+Cada selector consulta `GET /api/players?q=…&sort=-currentValue` con debounce
+y carga páginas de 20 resultados al desplazarse. El filtro se aplica antes de
+paginar, los empates se resuelven por ID y los jugadores sin valoración siguen
+en el listado. Clubes y competiciones se consultan por separado.
+
+Las fichas muestran club, liga, posición, edad y valor de mercado. Comparten
+la resolución del retrato y el escudo con el resto de la aplicación.
+
+El bloque de mercado enfrenta valor, referencia heurística por comparables
+y diferencias absoluta y relativa (esta última con valor de mercado positivo).
+Las cifras deportivas proceden de `GET /api/players/:id/stats`: se elige una
+temporada común, se prioriza una competición compartida y se identifican las
+ligas si difieren. Los goles y las asistencias por 90 minutos requieren un
+recuento válido y minutos positivos. Cada barra compara la misma métrica
+entre los dos futbolistas.
+
+La cobertura actual de estadísticas de liga se limita a minutos, goles y
+asistencias. El replay contiene eventos seleccionados con coordenadas cuando
+están disponibles, sin seguimiento continuo ni enlace estable entre el jugador
+de StatsBomb y el del catálogo. Quedan pendientes radar y mapas de calor con
+datos suficientemente comparables.
+
+### Identidad visual
+
+El catálogo local en `web/src/media/catalog/` registra origen, licencia e
+identificadores verificados. Comparador, ficha individual, tabla del
+Explorador y rankings usan el mismo retrato cuando coincide el ID de
+Transfermarkt y la fecha de nacimiento. `GET /api/players` y
+`GET /api/aggregates/undervalued` incluyen `externalIds.transfermarkt` cuando
+existe. El segundo endpoint lo incluye también en el club de cada fila.
+
+El escudo de un club se obtiene por su ID de Transfermarkt. Partidos y Live
+Match usan correspondencias explícitas por ID de partido, lado, competición,
+temporada y nombre del equipo registrado. Jugadores y partidos siguen sin
+una relación de selección general en MongoDB. Los retratos y escudos se
+sirven en local, con iniciales cuando no hay recurso o falla la carga.
+`/credits` recoge la atribución. Fuentes, cobertura y preparación en
+[web/MEDIA.md](web/MEDIA.md).
 
 ---
 
@@ -447,7 +488,7 @@ lectura y la navegación sobre el centro de partido existente.
   heurística (2.445 jugadores), 88.023 `Shot`, 445 `Match` (3 reproducibles) y la
   final del Mundial 2022 reproducida (120 `MatchEvent`; reproducir con `--reset`
   para que guarde también `card` y `replacement`, añadidos después).
-- **API:** todo lo de la sección 9. 53 tests de integración (`npm test`), en
+- **API:** todo lo de la sección 9. 54 tests (`npm test`), en
   serie, con helpers `test/helpers/` (`testDb`, `apiServer`, `mlStub`).
 - **ML:** pipeline completo, `serve.py` con 9 tests pytest, explorador de datos.
 - **Reproductor** probado de punta a punta: final del Mundial → 3-3, penaltis
@@ -455,12 +496,18 @@ lectura y la navegación sobre el centro de partido existente.
 - **Web:** sistema visual global con tema oscuro principal y tema claro por
   `prefers-color-scheme`, aplicado al Explorador y a Login/Register.
   `PageHeader` y `Button` son reutilizables; la navegación pública oculta
-  las áreas protegidas hasta iniciar sesión. Ficha básica; faltan arrastre y CSV.
+  las áreas protegidas hasta iniciar sesión. Faltan arrastre y CSV.
 - **Partido en vivo:** `/live/:matchId` lee la ficha y sigue el replay por REST.
   Marcador, mapa, feed y gráfico se actualizan a partir de los mismos eventos.
 - **Visión general:** resumen de mercado agregado en MongoDB y rankings
   con carga progresiva y acceso a fichas.
 - **Partidos:** catálogo de replays en una ruta propia, con filtros y búsqueda.
+- **Comparador:** dos jugadores del catálogo, búsquedas paginadas por nombre
+  y comparación de mercado y rendimiento por temporada común, con tasas por
+  90 minutos.
+- **Identidad visual:** catálogo local con retratos acreditados, escudos de
+  clubes y federaciones. Los recursos verificados se reutilizan entre la
+  ficha, el Comparador y las listas o los centros de partido pertinentes.
 
 ### Pendiente (reparto)
 - **Compañero (ver `AGENTS.md`):** todo el frontend (diseño y vistas a su

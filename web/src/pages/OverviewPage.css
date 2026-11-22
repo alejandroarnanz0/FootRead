@@ -104,7 +104,7 @@
 .overview-ranking li + li { border-top: 1px solid var(--border); }
 .overview-ranking a {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: center;
   min-block-size: 3.75rem;

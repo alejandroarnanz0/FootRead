@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import PlayerPage from './pages/PlayerPage.jsx';
-import ComparePage from './pages/ComparePage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import { useAuth } from './hooks/useAuth.jsx';
@@ -13,6 +12,8 @@ const ExplorerPage = lazy(() => import('./pages/ExplorerPage.jsx'));
 const OverviewPage = lazy(() => import('./pages/OverviewPage.jsx'));
 const LiveMatchPage = lazy(() => import('./pages/LiveMatchPage.jsx'));
 const MatchesPage = lazy(() => import('./pages/MatchesPage.jsx'));
+const ComparePage = lazy(() => import('./pages/ComparePage.jsx'));
+const IdentityCreditsPage = lazy(() => import('./pages/IdentityCreditsPage.jsx'));
 
 // Every view needs a session (the API rejects anonymous reads too). Without one,
 // go to login and come back here afterwards.
@@ -85,10 +86,12 @@ export default function App() {
           <Route path="/overview" element={<RequireAuth><OverviewPage /></RequireAuth>} />
           <Route path="/matches" element={<RequireAuth><MatchesPage /></RequireAuth>} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/credits" element={<Suspense fallback={<Loading />}><IdentityCreditsPage /></Suspense>} />
           <Route path="/live/:matchId" element={<RequireAuth><LiveMatchPage /></RequireAuth>} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
+      {showNavigation && <footer className="app-footer"><Link to="/credits">Créditos de imágenes</Link></footer>}
     </div>
   );
 }

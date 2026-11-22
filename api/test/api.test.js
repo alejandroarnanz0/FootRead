@@ -16,6 +16,7 @@ process.env.NODE_ENV = 'test';
 const http = require('http');
 const mongoose = require('mongoose');
 const app = require('../app');
+const Club = require('../models/Club');
 const Player = require('../models/Player');
 const Valuation = require('../models/Valuation');
 const SeasonStat = require('../models/SeasonStat');
@@ -233,6 +234,29 @@ describe('API', () => {
       assert.equal(await status('?sort=password'), 400);
     });
 
+    it('searches names before sorting and paging, including players without a value', async () => {
+      const names = ['José Pérez', 'JOSE\u0301 PEREZ B', 'Jose Perez C', 'Ángel (Jr.)'];
+      const entries = await Player.create(names.map((name, index) => ({
+        name, position: 'MF', club: ids.madrid, currentValue: index < 2 ? 1e6 : undefined,
+      })));
+      try {
+        const list = async (query) => (await api('GET', `/api/players?${query}`)).body;
+        const pages = await Promise.all([1, 2, 3].map((page) => list(`q=JOSE%20PEREZ&sort=-currentValue&limit=1&page=${page}`)));
+        assert.deepEqual(pages.map(({ total, totalPages }) => [total, totalPages]), [[3, 3], [3, 3], [3, 3]]);
+        assert.deepEqual(pages.map(({ data }) => data[0]._id), entries.slice(0, 3).map(({ _id }) => String(_id)));
+        assert.equal(pages[2].data[0].currentValue, undefined);
+        assert.equal((await list('q=jos%C3%A9&position=FW')).total, 0);
+        assert.deepEqual((await list('q=%28jr.%29')).data.map(({ name }) => name), [names[3]]);
+        assert.equal((await list('q=%2E%2A')).total, 0);
+        assert.equal((await list('q=%20%20')).total, 8);
+        for (const query of ['q=a&q=b', 'q[$ne]=a', 'q=%00', `q=${'a'.repeat(81)}`]) {
+          assert.equal((await api('GET', `/api/players?${query}`)).status, 400);
+        }
+      } finally {
+        await Player.deleteMany({ _id: { $in: entries.map(({ _id }) => _id) } });
+      }
+    });
+
     it('ignores the competition filter under a club, whose URL already fixes it', async () => {
       const res = await api('GET', `/api/clubs/${ids.madrid}/players?competition=EN1&sort=name`);
       assert.deepEqual(res.body.data.map((p) => p.name), ['Alpha', 'Delta']);
@@ -264,7 +288,9 @@ describe('API', () => {
       assert.equal(put.body.currentValue, 3e6);
       assert.equal(put.body.club, ids.madrid);
       assert.equal((await api('PUT', `/api/players/${ids.alpha}`, { position: 'ZZ' })).status, 400);
-      await api('PUT', `/api/players/${ids.alpha}`, { externalIds: { transfermarkt: '1' } });
+      await api('PUT', `/api/players/${ids.alpha}`, { externalIds: { transfermarkt: '1', fbref: 'alpha-fbref' } });
+      const listed = (await api('GET', '/api/players?q=Alpha')).body.data[0];
+      assert.deepEqual(listed.externalIds, { transfermarkt: '1' });
       const dup = await api('PUT', `/api/players/${ids.beta}`, { externalIds: { transfermarkt: '1' } });
       assert.equal(dup.status, 409);
     });
@@ -293,6 +319,7 @@ describe('API', () => {
       await Player.updateOne({ _id: ids.alpha }, { predictedValue: 9e6 }); // value 3M -> residual +6M
       await Player.updateOne({ _id: ids.beta }, { predictedValue: 9e6 }); //  value 10M -> residual -1M
       await Player.updateOne({ _id: ids.gamma }, { predictedValue: 1.5e6 }); // value 1M -> residual +0.5M
+      await Club.updateOne({ _id: ids.madrid }, { externalIds: { transfermarkt: '99', fbref: 'madrid-fbref' } });
     });
 
     it('ranks undervalued players by residual and honours the filters', async () => {
@@ -301,6 +328,8 @@ describe('API', () => {
       assert.deepEqual(all.data.map((p) => p.name), ['Alpha', 'Gamma', 'Beta']);
       assert.equal(all.data[0].residual, 6e6);
       assert.equal(all.data[0].club.name, 'Madrid');
+      assert.deepEqual(all.data[0].externalIds, { transfermarkt: '1' });
+      assert.deepEqual(all.data[0].club.externalIds, { transfermarkt: '99' });
       assert.equal(all.total, 3);
       assert.deepEqual((await rank('?competition=ES1')).data.map((p) => p.name), ['Alpha', 'Beta']);
       assert.deepEqual((await rank('?position=DF')).data.map((p) => p.name), ['Gamma']);

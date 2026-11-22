@@ -30,7 +30,7 @@
 .overview-match-meta { display: grid; color: var(--muted); font-size: 0.8rem; overflow-wrap: anywhere; }
 .overview-match-meta strong { color: var(--text-2); }
 .overview-match-teams { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; overflow-wrap: anywhere; font-size: clamp(0.95rem, 1.5vw, 1.15rem); }
-.overview-match-teams strong:first-child { text-align: end; }
+.overview-match-teams strong:first-child { justify-content: end; text-align: end; }
 .overview-match-versus { padding: 3px 7px; border: 1px solid var(--control-border); border-radius: 4px; color: var(--text-2); font-size: 0.72rem; font-weight: 650; background: var(--page); }
 .overview-match:focus-within { border-color: var(--control-border); }
 .overview-replay { border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--text-2); padding: 3px 6px; font-size: 0.75rem; width: fit-content; justify-self: end; }
