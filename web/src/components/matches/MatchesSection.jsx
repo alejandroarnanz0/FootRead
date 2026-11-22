@@ -5,6 +5,7 @@ import { useApi } from '../../hooks/useApi.js';
 import { competitionLabel, teamLabel } from '../../matchLabels.js';
 import Button from '../Button.jsx';
 import { ErrorMessage, Loading, Notice } from '../Status.jsx';
+import { MatchTeamBadge } from '../visual/TeamBadge.jsx';
 import './MatchesSection.css';
 
 const PAGE_SIZE = 8;
@@ -31,9 +32,9 @@ function MatchRow({ match }) {
           : <span>Fecha no disponible</span>}
       </div>
       <div className="overview-match-teams">
-        <strong>{home}</strong>
+        <strong className="identity-inline"><MatchTeamBadge match={match} side="home" decorative />{home}</strong>
         <span className="overview-match-versus" aria-hidden="true">VS</span>
-        <strong>{away}</strong>
+        <strong className="identity-inline"><MatchTeamBadge match={match} side="away" decorative />{away}</strong>
       </div>
       <span className={`overview-replay${hasEvents ? ' overview-replay-recorded' : ''}`}>{status}</span>
       <Link className="button button-secondary" to={`/live/${encodeURIComponent(match.matchId)}`}

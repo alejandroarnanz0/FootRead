@@ -6,6 +6,7 @@ const SeasonStat = require('../models/SeasonStat');
 const asyncHandler = require('../utils/asyncHandler');
 const httpError = require('../utils/httpError');
 const pick = require('../utils/pick');
+const playerNameSearch = require('../utils/playerNameSearch');
 const { parseFilters, buildSort, buildPlayerFilter, pageResponse } = require('../middleware/filters');
 const valuationsRouter = require('./valuations');
 const statsRouter = require('./stats');
@@ -29,7 +30,7 @@ const FIELDS = [
   'externalIds',
 ];
 const LIST_SELECT =
-  'name position subPosition foot heightCm birthDate club currentValue predictedValue contractUntil lastSeason';
+  'name position subPosition foot heightCm birthDate club currentValue predictedValue contractUntil lastSeason externalIds.transfermarkt';
 const SORT_FIELDS = ['name', 'position', 'birthDate', 'currentValue', 'predictedValue'];
 
 // Creating a player needs the club of the URL (req.club).
@@ -58,7 +59,9 @@ router
     parseFilters,
     asyncHandler(async (req, res) => {
       const f = req.filters;
+      const name = playerNameSearch(req.query.q);
       const match = await buildPlayerFilter(f, req.club ? { club: req.club._id } : {});
+      if (name) match.name = name;
       const [data, total] = await Promise.all([
         Player.find(match)
           .select(LIST_SELECT)

@@ -1,4 +1,5 @@
 import client from './client.js';
+import { getClub } from './clubs.js';
 
 const get = (path, signal, params) =>
   client.get(path, { params, signal }).then(({ data }) => data);
@@ -26,14 +27,14 @@ export async function getMarketLeaders(page, signal) {
   const clubIds = [...new Set(players.map((player) => player.club).filter(Boolean))];
   const clubs = await Promise.all(clubIds.map(async (id) => {
     try {
-      return [id, (await get(`/clubs/${id}`, signal)).name];
+      return [id, await getClub(id, signal)];
     } catch (error) {
       if (signal.aborted || error.response?.status !== 404) throw error;
       return [id, null];
     }
   }));
-  const clubNames = new Map(clubs);
-  return rankingPage(response, players.map((player) => ({ ...player, clubName: clubNames.get(player.club) })), page);
+  const clubDetails = new Map(clubs);
+  return rankingPage(response, players.map((player) => ({ ...player, club: clubDetails.get(player.club) })), page);
 }
 
 export async function getScoutingLeaders(page, signal) {

@@ -1,14 +1,16 @@
 import { clock, formatXg, SHOOTOUT } from './matchData.js';
 import { competitionLabel, teamLabel } from '../../matchLabels.js';
+import { MatchTeamBadge } from '../visual/TeamBadge.jsx';
 
 const periods = { 1: 'Primera parte', 2: 'Segunda parte', 3: 'Prórroga · 1.ª parte', 4: 'Prórroga · 2.ª parte', 5: 'Tanda de penaltis' };
 
-function Team({ name, side, stats, goal, hasEvents }) {
+function Team({ match, side, stats, goal, hasEvents }) {
+  const name = side === 'home' ? match.homeTeam : match.awayTeam;
   return (
     <div className={`live-team live-${side}`}>
       <div className="live-team-identity">
         <span className="live-eyebrow">{side === 'home' ? 'Local' : 'Visitante'}</span>
-        <h2>{teamLabel(name)}</h2>
+        <h2 className="identity-inline"><MatchTeamBadge match={match} side={side} decorative />{teamLabel(name)}</h2>
       </div>
       {hasEvents && (
         <>
@@ -36,7 +38,7 @@ export default function LiveScoreboard({ match, summary, last, elapsed, live, er
         <span className={`live-status${live ? ' live-status-active' : ''}`}>{status}</span>
       </div>
       <div className={`live-score-grid${last ? '' : ' live-score-grid-empty'}`}>
-        <Team name={match.homeTeam} side="home" stats={summary.totals.home} hasEvents={Boolean(last)}
+        <Team match={match} side="home" stats={summary.totals.home} hasEvents={Boolean(last)}
           goal={goalSide === 'home' && goal.period !== SHOOTOUT} />
         {last ? <div className="live-clock">
           <span>{periods[last?.period] || 'Reloj del partido'}</span>
@@ -48,7 +50,7 @@ export default function LiveScoreboard({ match, summary, last, elapsed, live, er
             <small>Marcador no disponible</small>
           </div>
         )}
-        <Team name={match.awayTeam} side="away" stats={summary.totals.away} hasEvents={Boolean(last)}
+        <Team match={match} side="away" stats={summary.totals.away} hasEvents={Boolean(last)}
           goal={goalSide === 'away' && goal.period !== SHOOTOUT} />
       </div>
       <div className="live-board-bottom">

@@ -1,13 +1,54 @@
 import { Link, useParams } from 'react-router-dom';
 
+import { getClub } from '../api/clubs.js';
+import { getCompetition } from '../api/competitions.js';
 import { getPlayer } from '../api/players.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { ErrorMessage, Loading, Notice } from '../components/Status.jsx';
+import MediaCredit from '../components/visual/MediaCredit.jsx';
+import PlayerAvatar from '../components/visual/PlayerAvatar.jsx';
+import { ClubCrest } from '../components/visual/TeamBadge.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { ageFrom, formatEuros, formatResidual, POSITION_LABELS } from '../format.js';
+import { getPlayerPortrait } from '../media/identityCatalog.js';
+
+function PlayerHeader({ player }) {
+  const { data: club, loading: clubLoading } = useApi(
+    (signal) => player.club ? getClub(player.club, signal) : Promise.resolve(null),
+    [player.club]
+  );
+  const competitionId = club?.competition;
+  const { data: competition } = useApi(
+    (signal) => competitionId ? getCompetition(competitionId, signal) : Promise.resolve(null),
+    [competitionId]
+  );
+  const age = ageFrom(player.birthDate);
+  const position = POSITION_LABELS[player.position] ?? 'Posición no disponible';
+  return (
+    <div className="card player-profile">
+      <PlayerAvatar player={player} className="player-profile-portrait" eager />
+      <div className="player-profile-copy">
+        <PageHeader title={player.name} description={age === null ? position : `${position} · ${age} años`} />
+        <div className="identity-inline player-profile-club">
+          {club ? <><ClubCrest club={club} /><div><strong>{club.name}</strong><span className="muted">{competition?.name ?? 'Competición no disponible'}</span></div></>
+            : <span className="muted">{player.club && clubLoading ? 'Cargando club…' : 'Club no disponible'}</span>}
+        </div>
+        <dl className="player-profile-market">
+          <dt>Valor de mercado</dt>
+          <dd>{formatEuros(player.currentValue)}</dd>
+        </dl>
+        <MediaCredit asset={getPlayerPortrait(player)} className="identity-photo-credit" />
+      </div>
+    </div>
+  );
+}
 
 export default function PlayerPage() {
   const { playerId } = useParams();
+  return <PlayerDetails key={playerId} playerId={playerId} />;
+}
+
+function PlayerDetails({ playerId }) {
   const { data: player, error, retry } = useApi((signal) => getPlayer(playerId, signal), [playerId]);
 
   return (
@@ -26,15 +67,8 @@ export default function PlayerPage() {
         <Loading>Cargando jugador…</Loading>
       ) : (
         <>
-          <PageHeader
-            title={player.name}
-            description={`${POSITION_LABELS[player.position]} · ${ageFrom(player.birthDate) ?? '—'} años`}
-          />
+          <PlayerHeader player={player} />
           <dl className="facts card">
-            <div>
-              <dt>Valor real</dt>
-              <dd>{formatEuros(player.currentValue)}</dd>
-            </div>
             <div>
               <dt>Referencia por comparables</dt>
               <dd>{formatEuros(player.predictedValue)}</dd>

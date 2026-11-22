@@ -176,6 +176,84 @@ h2 {
   padding: var(--space-4);
 }
 
+.identity-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.identity-image {
+  --identity-size: 2rem;
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 var(--identity-size);
+  place-items: center;
+  inline-size: var(--identity-size);
+  block-size: var(--identity-size);
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.identity-image img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+}
+
+.identity-image[data-image-status="loading"] img { visibility: hidden; }
+.identity-crest[data-image-status="ready"] { background: #eef1ec; }
+.identity-crest img { object-fit: contain; object-position: center; padding: 3px; }
+.identity-photo-credit { margin: 0; color: var(--text-2); font-size: 0.75rem; overflow-wrap: anywhere; }
+
+.player-profile {
+  display: grid;
+  grid-template-columns: minmax(96px, 160px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(12px, 3vw, 24px);
+  margin-block: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.player-profile-portrait {
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 1;
+  font-size: clamp(1.3rem, 4vw, 2.4rem);
+}
+
+.player-profile-copy { display: grid; gap: var(--space-2); }
+.player-profile-copy .page-head { margin: 0; }
+.player-profile-club > div { display: grid; }
+.player-profile-club .muted { margin: 0; }
+.player-profile-market { margin: 0; }
+.player-profile-market dt { color: var(--text-2); font-size: 0.78rem; }
+.player-profile-market dd { margin: 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.app-footer {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-5) var(--space-5);
+  font-size: 0.78rem;
+}
+
+.identity-credits + .identity-credits { margin-top: var(--space-4); }
+.identity-credits ul { display: grid; margin-bottom: 0; padding: 0; list-style: none; }
+.identity-credits li + li { margin-top: var(--space-2); }
+.identity-credits p { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
+
+@media (max-width: 480px) {
+  .player-profile { grid-template-columns: minmax(76px, 30%) minmax(0, 1fr); align-items: start; }
+}
+
 .explorer {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);

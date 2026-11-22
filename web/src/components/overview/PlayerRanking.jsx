@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { formatEuros, formatResidual, POSITION_LABELS } from '../../format.js';
 import { ErrorMessage, Loading, Notice } from '../Status.jsx';
 import { usePagedRanking } from '../../hooks/usePagedRanking.js';
+import PlayerAvatar from '../visual/PlayerAvatar.jsx';
 
 const LOAD_DISTANCE = 48;
 const downKeys = new Set(['ArrowDown', 'PageDown', 'End', ' ']);
@@ -55,9 +56,10 @@ export default function PlayerRanking({ loadPage, scouting = false }) {
               <li key={player._id}>
                 <Link to={`/players/${player._id}`}>
                   <span className="overview-rank" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                  <PlayerAvatar player={player} decorative />
                   <span className="overview-player">
                     <strong>{player.name}</strong>
-                    <small>{[player.clubName ?? player.club?.name, POSITION_LABELS[player.position]].filter(Boolean).join(' · ')}</small>
+                    <small>{[player.club?.name, POSITION_LABELS[player.position]].filter(Boolean).join(' · ')}</small>
                     <span className="overview-meter" aria-hidden="true"><i style={{ width: `${players[0][key] > 0 ? player[key] / players[0][key] * 100 : 0}%` }} /></span>
                   </span>
                   <b className="overview-ranking-value">{scouting ? formatResidual(player[key]) : formatEuros(player[key])}</b>

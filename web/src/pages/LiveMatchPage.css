@@ -143,6 +143,8 @@
 }
 
 .live-team-identity { grid-area: identity; min-width: 0; }
+.live-team-identity h2.identity-inline { display: flex; flex-wrap: wrap; justify-content: center; }
+.live-team-identity .identity-crest { --identity-size: clamp(1.55rem, 3vw, 2.55rem); }
 .live-home { --team-color: var(--live-home); }
 .live-away { --team-color: var(--live-away); }
 .live-eyebrow { color: var(--team-color); }

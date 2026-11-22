@@ -1,0 +1,40 @@
+{
+  "2302764": {
+    "competition": "Champions League",
+    "season": "2004/2005",
+    "home": { "type": "club", "id": "5", "name": "AC Milan" },
+    "away": { "type": "club", "id": "31", "name": "Liverpool" }
+  },
+  "3825700": {
+    "competition": "La Liga",
+    "season": "2015/2016",
+    "home": { "type": "club", "id": "418", "name": "Real Madrid" },
+    "away": { "type": "club", "id": "367", "name": "Rayo Vallecano" }
+  },
+  "3869685": {
+    "competition": "FIFA World Cup",
+    "season": "2022",
+    "home": { "type": "national", "id": "3437", "name": "Argentina" },
+    "away": { "type": "national", "id": "3377", "name": "France" }
+  },
+  "3857255": {
+    "competition": "FIFA World Cup",
+    "season": "2022",
+    "away": { "type": "national", "id": "3375", "name": "Spain" }
+  },
+  "3869220": {
+    "competition": "FIFA World Cup",
+    "season": "2022",
+    "away": { "type": "national", "id": "3375", "name": "Spain" }
+  },
+  "3857263": {
+    "competition": "FIFA World Cup",
+    "season": "2022",
+    "home": { "type": "national", "id": "3375", "name": "Spain" }
+  },
+  "3857291": {
+    "competition": "FIFA World Cup",
+    "season": "2022",
+    "home": { "type": "national", "id": "3375", "name": "Spain" }
+  }
+}
