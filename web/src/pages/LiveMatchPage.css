@@ -80,6 +80,8 @@
 
 .live-board-top { border-bottom: 1px solid var(--border); }
 .live-board-bottom { border-top: 1px solid var(--border); background: var(--page); }
+.live-connection[data-connection="connected"] { color: var(--accent); }
+.live-connection[data-connection="error"] { color: var(--over); }
 
 .live-status,
 .live-eyebrow,

@@ -3,10 +3,12 @@
 const http = require('http');
 const { connectTestDb, mongoose } = require('./testDb'); // must load before the app
 
-async function startApi() {
+async function startApi({ realtime = false } = {}) {
   const app = require('../../app');
   await connectTestDb();
-  const server = http.createServer(app).listen(0);
+  const server = http.createServer(app);
+  const io = realtime ? require('../../realtime/matches').attachMatchRealtime(server, app) : null;
+  server.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   let token = null;
@@ -30,12 +32,16 @@ async function startApi() {
   return {
     base,
     api,
+    io,
     get token() {
       return token;
     },
     close: async () => {
-      server.closeAllConnections();
-      await new Promise((resolve) => server.close(resolve));
+      if (io) await io.close();
+      else {
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+      }
       await User.deleteMany({ email: 'helper@example.com' });
       await mongoose.disconnect();
     },
