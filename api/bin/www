@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 
 const http = require('http');
+const mongoose = require('mongoose');
 const app = require('../app');
+const { attachMatchRealtime } = require('../realtime/matches');
 
 // Render assigns the port through process.env.PORT
 const port = Number(process.env.PORT) || 3000;
 app.set('port', port);
 
 const server = http.createServer(app);
+const io = attachMatchRealtime(server, app);
 
 server.listen(port);
 
@@ -25,3 +28,18 @@ server.on('error', (err) => {
   }
   process.exit(1);
 });
+
+let closing = false;
+async function shutdown() {
+  if (closing) return;
+  closing = true;
+  try {
+    await io.close();
+    await mongoose.disconnect();
+  } catch {
+    console.error('API shutdown failed');
+    process.exitCode = 1;
+  }
+}
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);

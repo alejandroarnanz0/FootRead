@@ -16,8 +16,9 @@ const hasCoordinates = ({ x, y }) =>
   Number.isFinite(x) && x >= 0 && x <= 120 && Number.isFinite(y) && y >= 0 && y <= 80;
 
 function MatchView({ matchId }) {
-  const { match, events, eventsLoaded, error, activity, activityAge, elapsed, live, retry } = useLiveMatch(matchId);
+  const { match, events, eventsLoaded, error, activity, activityAge, elapsed, live, connection, resetVersion, retry } = useLiveMatch(matchId);
   const [selectedKey, setSelectedKey] = useState(null);
+  useEffect(() => { setSelectedKey(null); }, [resetVersion]);
   const summary = useMemo(() => match && summarizeMatch(match, events), [match, events]);
   if (!match) {
     return (
@@ -32,7 +33,7 @@ function MatchView({ matchId }) {
   const activeEvents = !error && activityAge < 3500 ? activity.events : [];
   const newest = activeEvents.at(-1);
   const last = events.at(-1);
-  const title = live ? 'Partido en vivo' : last || !eventsLoaded || error ? 'Centro de partido' : 'Ficha del partido';
+  const title = last || !eventsLoaded || error ? 'Centro de partido' : 'Ficha del partido';
   const goal = activeEvents.findLast(isGoal);
   const bannerGoal = activityAge < 2800 ? goal : null;
   const shots = events.filter((event) =>
@@ -52,7 +53,7 @@ function MatchView({ matchId }) {
       <MatchBreadcrumbs match={match} />
       <PageHeader title={title} />
       <LiveScoreboard match={match} summary={summary} last={last} elapsed={elapsed} live={live} error={error}
-        goal={goal} goalSide={goal && teamSide(goal, match)} eventsLoaded={eventsLoaded} />
+        goal={goal} goalSide={goal && teamSide(goal, match)} eventsLoaded={eventsLoaded} connection={connection} />
       {error && <ErrorMessage error={error} onRetry={retry} title="No se pudieron actualizar los eventos" />}
       <div className="live-goal-slot" role="status">
         {bannerGoal && (

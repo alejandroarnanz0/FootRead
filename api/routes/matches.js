@@ -14,6 +14,15 @@ const router = express.Router();
 const SHOOTOUT = 5;
 const LIST_SELECT = 'matchId competition season matchDate homeTeam awayTeam';
 
+function notifyMatchChange(req, reason) {
+  const { matchId } = req.match;
+  try {
+    req.app.locals.publishMatchChange?.(matchId, reason);
+  } catch {
+    console.error(`Unable to publish match update for ${matchId} (${reason})`);
+  }
+}
+
 router.param(
   'matchId',
   asyncHandler(async (req, res, next, matchId) => {
@@ -89,6 +98,7 @@ router
       try {
         const created = await MatchEvent.create(event);
         const { raw, __v, ...out } = created.toObject();
+        notifyMatchChange(req, 'event');
         return res.status(201).json(out);
       } catch (err) {
         if (err.code !== 11000) throw err;
@@ -101,6 +111,7 @@ router
   .delete(
     asyncHandler(async (req, res) => {
       await MatchEvent.deleteMany({ matchId: req.match.matchId });
+      notifyMatchChange(req, 'reset');
       res.status(204).end();
     })
   );

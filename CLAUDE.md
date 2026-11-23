@@ -53,7 +53,7 @@ Requisitos añadidos por el profesor en la tutoría del 29-10-2026: sección 14.
   CSV / parquet  →   scripts Node  →   Atlas      →    Express    →     React
   / JSON             (a mano, 1 vez)   footboard        (JSON + JWT)    (navegador)
                                                         │      ▲
-                                                        │      │ WebSocket (Socket.IO, pendiente)
+                                                        │      │ avisos de cambios (Socket.IO)
                                          POST /predict  ▼      │
   REPRODUCTOR  ── POST eventos (JWT) ──►  API  ──►  SERVICIO ML (Python, FastAPI, Docker)
   (partido ya jugado)                                   XGBoost + SHAP
@@ -64,7 +64,8 @@ Requisitos añadidos por el profesor en la tutoría del 29-10-2026: sección 14.
 - **Servicio ML** (`ml/serve.py`): aparte, porque XGBoost y SHAP no existen en Node.
 - **Reproductor** (`api/scripts/replay.js`): envía por la API los eventos de un
   partido ya jugado respetando su ritmo (sección 14.3).
-- **React**: pide datos con axios. La vista en vivo consulta los eventos por REST.
+- **React**: pide datos con axios. La vista en vivo recibe avisos de Socket.IO
+  y sincroniza los eventos por REST.
 
 ---
 
@@ -76,7 +77,7 @@ Requisitos añadidos por el profesor en la tutoría del 29-10-2026: sección 14.
 | Base de datos | MongoDB Atlas + Mongoose 8 |
 | Backend | Express 4 (`express-generator --no-view`) |
 | Autenticación | `jsonwebtoken` + `bcryptjs` |
-| Tiempo real | Socket.IO (pendiente) |
+| Tiempo real | Socket.IO 4 (avisos por sala, datos por REST) |
 | Frontend | React 19 + Vite 8 + react-router-dom 7 |
 | Cliente HTTP | axios |
 | Gráficos | Recharts |
@@ -295,7 +296,7 @@ iniciar sesión. Textos en español, código en inglés.
 | `/login` | Entrar o registrarse, con la identidad visual de Footboard | Hecha |
 | `/` | **Explorador**: scatter real vs. referencia (log-log, diagonal), filtros, tabla ordenable; clic → ficha | Identidad visual aplicada; faltan arrastre y CSV |
 | `/players/:id` | **Ficha**: perfil con retrato, escudo, club, liga, edad y cifras de mercado | Disponible. Historial, estadísticas y comparables en ficha pendientes |
-| `/live/:matchId` | **Partido en vivo**: marcador, feed de eventos, mapa de tiros interactivo y evolución del xG | Disponible con actualización por REST |
+| `/live/:matchId` | **Centro de partido**: marcador, feed de eventos, mapa de tiros interactivo y evolución del xG | Replay con Socket.IO y respaldo REST |
 | `/overview` | **Visión general**: KPIs, distribuciones y rankings paginados de mercado y scouting | Disponible |
 | `/matches` | **Partidos**: catálogo de replays con búsqueda por equipo, filtros por competición y eventos y orden por fecha | Disponible |
 | `/compare` | **Comparador** de dos jugadores, con mercado, referencias y estadísticas de liga por temporada | Disponible |
@@ -488,7 +489,7 @@ lectura y la navegación sobre el centro de partido existente.
   heurística (2.445 jugadores), 88.023 `Shot`, 445 `Match` (3 reproducibles) y la
   final del Mundial 2022 reproducida (120 `MatchEvent`; reproducir con `--reset`
   para que guarde también `card` y `replacement`, añadidos después).
-- **API:** todo lo de la sección 9. 54 tests (`npm test`), en
+- **API:** todo lo de la sección 9. 61 tests (`npm test`), en
   serie, con helpers `test/helpers/` (`testDb`, `apiServer`, `mlStub`).
 - **ML:** pipeline completo, `serve.py` con 9 tests pytest, explorador de datos.
 - **Reproductor** probado de punta a punta: final del Mundial → 3-3, penaltis
@@ -497,7 +498,7 @@ lectura y la navegación sobre el centro de partido existente.
   `prefers-color-scheme`, aplicado al Explorador y a Login/Register.
   `PageHeader` y `Button` son reutilizables; la navegación pública oculta
   las áreas protegidas hasta iniciar sesión. Faltan arrastre y CSV.
-- **Partido en vivo:** `/live/:matchId` lee la ficha y sigue el replay por REST.
+- **Centro de partido:** `/live/:matchId` sigue los avisos del replay por Socket.IO y recupera los eventos por REST.
   Marcador, mapa, feed y gráfico se actualizan a partir de los mismos eventos.
 - **Visión general:** resumen de mercado agregado en MongoDB y rankings
   con carga progresiva y acceso a fichas.
@@ -511,7 +512,7 @@ lectura y la navegación sobre el centro de partido existente.
 
 ### Pendiente (reparto)
 - **Compañero (ver `AGENTS.md`):** todo el frontend (diseño y vistas a su
-  criterio), Socket.IO y usuario simulado. Libertad en la API;
+  criterio) y usuario simulado. Libertad en la API;
   no toca `ml/`, el proxy de xG ni la estructura de carpetas.
 - **Alejandro:** commits y PRs; decidir mejoras del xG (restricciones monótonas,
   indicador femenino/masculino, `freeze_frame`); promocionar la ejecución elegida
@@ -554,22 +555,74 @@ El usuario simulado: se autentica, **crea** datos claramente ficticios,
 - Marcador: cuentan los goles en propia puerta (`Own Goal For` va al equipo que
   se beneficia); la tanda de penaltis (`period` 5) se informa aparte en
   `shootout` y no cuenta ni en el marcador ni en el xG acumulado.
-- La web consulta `GET /api/matches/:matchId/events` cada dos segundos tras
-  cada respuesta. La lista completa permite detectar un reinicio del replay.
-  LIVE requiere que el último evento tenga un `receivedAt` válido y de hace
-  menos de 15 segundos. La cabecera distingue actividad reciente del replay,
-  eventos históricos y fichas sin eventos. Un fallo de consulta se muestra
-  por separado y puede reintentarse.
+- «Replay · Actividad reciente» indica que el `receivedAt` más reciente es
+  válido y de hace menos de 15 segundos. El reloj de partido se lee del último
+  evento por secuencia.
+  La cabecera muestra por separado el transporte, la actividad del replay
+  y los fallos de consulta.
 - El catálogo distingue entre partidos con y sin eventos registrados mediante
   `eventCount`; `available` indica que el ETL encontró el archivo al importar
   el catálogo. El listado no certifica marcador final, tanda ni actividad.
   El detalle espera el replay si no hay eventos y muestra el marcador
   acumulado cuando llegan. Para reproducir otro encuentro, obtener su JSON
   según `data/README.md` y ejecutar el reproductor contra una base autorizada.
-- **Socket.IO (fase posterior):** la web sigue usando polling REST. Idea
-  orientativa: una sala por partido, avisar tras cada evento nuevo (201) y, al
-  reconectar, recuperar lo perdido con `GET /events?after=<sequence>`.
-  Pistas en `AGENTS.md` §5.
+
+#### Socket.IO y recuperación
+
+`api/bin/www` acopla Socket.IO al mismo servidor de Express, con la ruta
+`/socket.io/` y `CORS_ORIGIN`. El cliente usa el origen de `VITE_API_URL`.
+El handshake recibe `auth: { token }`, verifica el JWT con las mismas reglas
+HS256 de REST y cierra la conexión al caducar. El servidor valida el ID de
+StatsBomb y la existencia del partido. Cada socket se suscribe a un partido.
+
+| Dirección | Evento | Datos |
+| --- | --- | --- |
+| Cliente → servidor | `match:join` | `{ matchId }`. Devuelve `{ ok: true, matchId }` al entrar en `match:<id>` o `{ ok: false, code }` |
+| Cliente → servidor | `match:leave` | `{ matchId }`. Confirmación idempotente |
+| Servidor → sala | `match:changed` | `{ matchId, reason: 'event' \| 'reset' }` |
+
+Una inserción confirmada (`201`) emite `event`. Un borrado confirmado
+(`204`) emite `reset`. Un duplicado (`200`) conserva la respuesta REST y
+omite el aviso. Los fallos de emisión se registran tras la escritura. El
+reproductor sigue usando los mismos métodos y respuestas REST.
+
+Con el ack de suscripción, al reconectar o al recuperar el foco, la web lee
+la lista completa de `GET /api/matches/:matchId/events`. Los avisos agrupan
+lecturas con una petición en vuelo. Si llegan durante una lectura, queda una
+lectura pendiente. La lista ordenada sustituye a la anterior. Los `_id`
+identifican altas y versiones nuevas de eventos tras un reset. Al detectar
+un reset se limpian la selección y las animaciones antiguas. La secuencia
+de StatsBomb puede reutilizarse o llegar fuera de orden.
+
+En conexión sana se revalida por REST cada 30 s de inactividad. Durante
+desconexión, espera de suscripción o error, el respaldo REST funciona cada
+5 s. El contenido anterior se conserva durante fallos recuperables.
+El módulo usa salas en memoria para una sola instancia. Si se escala la
+API, hay que compartir salas y configurar afinidad para long-polling.
+Se admite un productor por partido durante el replay. Antes de usar
+`--reset`, detener el productor anterior para evitar escrituras en vuelo.
+
+La integración de Socket.IO se ha validado con fixtures en `footboard_test`.
+Queda pendiente repetir la validación con un replay histórico completo y el
+servicio real de xG. La auditoría de la API conserva un aviso moderado
+preexistente de `csv-parse` (versión instalada 5.6.0).
+
+#### Comprobación local
+
+1. Instalar dependencias en `api/` y `web/`. Para uso normal arrancar
+   `npm run dev` en ambas carpetas.
+2. Para un ensayo con escrituras, arrancar `npm run start:test` en
+   `api/`. Comprobar que `GET http://localhost:3001/api/health` devuelve
+   `db: "footboard_test"` y arrancar Vite con
+   `VITE_API_URL=http://localhost:3001/api`, conservando el origen
+   autorizado por `CORS_ORIGIN`.
+3. Con un partido presente en la base de pruebas, abrir `/live/<id>`
+   en dos sesiones autenticadas y otro partido en una tercera. Enviar
+   eventos con el POST ya existente, o con el reproductor cuando estén
+   disponibles sus archivos y credenciales autorizadas para pruebas.
+   Por ejemplo, desde `api/`, con el partido disponible en esa base:
+   `npm run replay -- --match=3869685 --api=http://localhost:3001/api --speed=20 --reset`.
+   Las pruebas automatizadas usan fixtures y no necesitan esos JSON históricos.
 
 Partidos de la demo (`ml/config.yaml`, forzados a test en el xG): 3869685
 Argentina-Francia (final del Mundial 2022), 2302764 Milan-Liverpool (final de

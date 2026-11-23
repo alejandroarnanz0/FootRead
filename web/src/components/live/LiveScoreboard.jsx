@@ -3,6 +3,13 @@ import { competitionLabel, teamLabel } from '../../matchLabels.js';
 import { MatchTeamBadge } from '../visual/TeamBadge.jsx';
 
 const periods = { 1: 'Primera parte', 2: 'Segunda parte', 3: 'Prórroga · 1.ª parte', 4: 'Prórroga · 2.ª parte', 5: 'Tanda de penaltis' };
+const connectionLabels = {
+  connecting: 'Conectando…',
+  connected: 'Conectado en tiempo real',
+  reconnecting: 'Reconectando · Actualización REST',
+  fallback: 'Actualización REST de respaldo',
+  error: 'Error de conexión · Actualización REST',
+};
 
 function Team({ match, side, stats, goal, hasEvents }) {
   const name = side === 'home' ? match.homeTeam : match.awayTeam;
@@ -25,12 +32,10 @@ function Team({ match, side, stats, goal, hasEvents }) {
   );
 }
 
-export default function LiveScoreboard({ match, summary, last, elapsed, live, error, goal, goalSide, eventsLoaded }) {
-  const status = error ? 'Actualización interrumpida' : live ? 'LIVE' : last ? 'Replay registrado'
+export default function LiveScoreboard({ match, summary, last, elapsed, live, error, goal, goalSide, eventsLoaded, connection }) {
+  const status = error ? 'Actualización interrumpida' : live ? 'Replay · Actividad reciente' : last ? 'Replay registrado'
     : eventsLoaded ? 'Sin eventos registrados' : 'Cargando eventos';
   const metadata = [competitionLabel(match.competition), match.season].filter(Boolean).join(' · ');
-  const source = live ? 'Recibiendo eventos del replay · Consulta automática'
-    : last ? 'Eventos registrados · Consulta automática' : 'Datos de StatsBomb · Actualización automática';
   return (
     <section className="live-board" aria-label="Marcador del partido">
       <div className="live-board-top">
@@ -54,7 +59,7 @@ export default function LiveScoreboard({ match, summary, last, elapsed, live, er
           goal={goalSide === 'away' && goal.period !== SHOOTOUT} />
       </div>
       <div className="live-board-bottom">
-        <span>{source}</span>
+        <span className="live-connection" data-connection={connection} role="status">{connectionLabels[connection]}</span>
         {last && elapsed !== null && <span>{elapsed < 60000 ? `Último evento hace ${Math.floor(elapsed / 1000)} s` : 'Sin eventos recientes'}</span>}
       </div>
     </section>

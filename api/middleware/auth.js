@@ -15,13 +15,15 @@ function signToken(user) {
   });
 }
 
+const verifyToken = (token) => jwt.verify(token, secret(), { algorithms: ['HS256'] });
+
 // Reads "Authorization: Bearer <token>", verifies signature and expiry, and
 // leaves the user in req.user. 401 when missing, invalid or expired.
 function requireAuth(req, res, next) {
   const [scheme, token] = (req.get('authorization') || '').split(' ');
   if (scheme !== 'Bearer' || !token) return next(httpError(401, 'Missing token'));
   try {
-    const payload = jwt.verify(token, secret(), { algorithms: ['HS256'] });
+    const payload = verifyToken(token);
     req.user = { id: payload.sub, email: payload.email };
     return next();
   } catch (err) {
@@ -29,4 +31,4 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { signToken, requireAuth };
+module.exports = { signToken, verifyToken, requireAuth };

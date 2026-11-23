@@ -27,6 +27,10 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.8.0",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
   }
 }
