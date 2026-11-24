@@ -16,8 +16,23 @@ function getSocket() {
   return socket;
 }
 
+const COMMAND_TIMEOUT = 8000;
+
+// Web -> API -> replayer: play, pause, speed or restart. Resolves with the
+// replayer's answer ({ ok, state } or { ok: false, code }), never throws.
+export async function sendReplayCommand(matchId, action, speed) {
+  const client = socket;
+  if (!client?.connected) return { ok: false, code: 'DISCONNECTED' };
+  try {
+    return await client.timeout(COMMAND_TIMEOUT)
+      .emitWithAck('replay:command', { matchId, action, ...(speed !== undefined && { speed }) });
+  } catch {
+    return { ok: false, code: 'REPLAYER_TIMEOUT' };
+  }
+}
+
 // The protected match route owns the subscription. The client itself is reused.
-export function subscribeToMatch(matchId, { onStatus, onChange }) {
+export function subscribeToMatch(matchId, { onStatus, onChange, onReplay = () => {} }) {
   const client = getSocket();
   let joinTimer;
   let generation = 0;
@@ -66,6 +81,10 @@ export function subscribeToMatch(matchId, { onStatus, onChange }) {
         (update.reason === 'event' || update.reason === 'reset')) onChange(update.reason);
   }
 
+  function replayState(state) {
+    if (active && state?.matchId === matchId) onReplay(state);
+  }
+
   function stop() {
     if (!active) return;
     active = false;
@@ -74,6 +93,7 @@ export function subscribeToMatch(matchId, { onStatus, onChange }) {
     client.off('disconnect', disconnected);
     client.off('connect_error', connectionError);
     client.off('match:changed', changed);
+    client.off('replay:state', replayState);
     window.removeEventListener(LOGOUT_EVENT, stop);
     window.removeEventListener('storage', sessionChanged);
     if (client.connected) client.emit('match:leave', { matchId });
@@ -97,6 +117,7 @@ export function subscribeToMatch(matchId, { onStatus, onChange }) {
   client.on('disconnect', disconnected);
   client.on('connect_error', connectionError);
   client.on('match:changed', changed);
+  client.on('replay:state', replayState);
   window.addEventListener(LOGOUT_EVENT, stop);
   window.addEventListener('storage', sessionChanged);
   client.connect();

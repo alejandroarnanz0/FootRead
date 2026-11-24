@@ -127,24 +127,263 @@ async function replay({ matchId, events, speed = 60, reset = false, client, wait
   return { sent: selected.length, created, state };
 }
 
+// ---------------------------------------------------------------------------
+// Agent mode: the replayer stays connected to the API through Socket.IO (with
+// its JWT, role "replayer") and obeys the commands the web sends: play, pause,
+// speed and restart. Events still travel by REST POST, exactly as above.
+// ---------------------------------------------------------------------------
+
+const TICK_MS = 100;
+const STATE_EVERY_MS = 1000;
+const DEFAULT_EVENTS_DIR = path.join(__dirname, '..', '..', 'data', 'statsbomb_open_data', 'events');
+
+// One controllable replay of one match. Keeps the original rhythm: before each
+// event it waits the game gap to the previous one (never negative), on a
+// virtual clock that runs `speed` times faster than real time and can pause.
+class ReplaySession {
+  constructor({ matchId, events, client, speed = 60, onState = () => {}, log = () => {}, tickMs = TICK_MS }) {
+    this.matchId = matchId;
+    this.events = selectEvents(events);
+    this.times = this.events.map(gameSeconds);
+    this.client = client;
+    this.speed = speed;
+    this.onState = onState;
+    this.log = log;
+    this.tickMs = tickMs;
+    this.status = 'idle';
+    this.cursor = 0; // next event to send
+    this.waited = 0; // game seconds waited since the last event sent
+    this.generation = 0;
+    this.loop = null;
+  }
+
+  get clock() {
+    if (!this.cursor) return this.waited;
+    return this.times[this.cursor - 1] + this.waited;
+  }
+
+  state() {
+    return {
+      matchId: this.matchId,
+      status: this.status,
+      speed: this.speed,
+      clock: Math.round(this.clock),
+      duration: this.times.at(-1) ?? 0,
+      sent: this.cursor,
+      total: this.events.length,
+    };
+  }
+
+  report() {
+    this.lastReport = Date.now();
+    this.onState(this.state());
+  }
+
+  setSpeed(speed) {
+    if (Number.isFinite(speed) && speed > 0) this.speed = speed;
+  }
+
+  async play(speed) {
+    this.setSpeed(speed);
+    if (this.status === 'playing') return this.report();
+    // A fresh session or a finished one starts over from an empty match.
+    if (this.status === 'idle' || this.status === 'finished') return this.restart();
+    await this.stop(); // the paused loop may still be finishing its last POST
+    this.status = 'playing';
+    this.start();
+  }
+
+  async pause() {
+    if (this.status !== 'playing') return this.report();
+    this.status = 'paused';
+    this.report();
+  }
+
+  async restart(speed) {
+    this.setSpeed(speed);
+    await this.stop(); // no POST in flight when the events are deleted
+    await this.client.request('DELETE', `/matches/${this.matchId}/events`);
+    this.cursor = 0;
+    this.waited = 0;
+    this.status = 'playing';
+    this.start();
+  }
+
+  async stop() {
+    this.generation++;
+    const running = this.loop;
+    if (running) await running.catch(() => {});
+  }
+
+  start() {
+    this.report();
+    const generation = ++this.generation;
+    this.loop = this.run(generation).catch((err) => {
+      this.log(`Replay of ${this.matchId} stopped: ${err.message}`);
+      if (generation === this.generation) {
+        this.status = 'paused';
+        this.report();
+      }
+    });
+  }
+
+  async run(generation) {
+    const alive = () => generation === this.generation && this.status === 'playing';
+    let last = Date.now();
+    while (alive() && this.cursor < this.events.length) {
+      const gap = this.cursor ? Math.max(0, this.times[this.cursor] - this.times[this.cursor - 1]) : 0;
+      if (this.waited < gap) {
+        await sleep(this.tickMs);
+        const now = Date.now();
+        if (alive()) this.waited += ((now - last) / 1000) * this.speed;
+        last = now;
+        if (now - this.lastReport >= STATE_EVERY_MS) this.report();
+        continue;
+      }
+      const event = this.events[this.cursor];
+      const { data } = await this.client.request('POST', `/matches/${this.matchId}/events`, event);
+      // Stored: advance even if a command arrived meanwhile, so it is never sent twice.
+      this.log(describe(event, data));
+      this.cursor++;
+      this.waited = Math.max(0, this.waited - gap);
+      last = Date.now();
+      if (generation !== this.generation) return;
+      this.report();
+    }
+    if (alive() && this.cursor >= this.events.length) {
+      this.status = 'finished';
+      this.waited = 0;
+      this.log(`Match ${this.matchId}: finished`);
+      this.report();
+    }
+  }
+}
+
+// Connects as "replayer", keeps one session per match and answers commands.
+class ReplayAgent {
+  constructor({ api, client, eventsDir = DEFAULT_EVENTS_DIR, speed = 20, log = console.log, connect, tickMs }) {
+    this.api = api;
+    this.client = client;
+    this.eventsDir = eventsDir;
+    this.speed = speed;
+    this.log = log;
+    this.tickMs = tickMs;
+    this.sessions = new Map();
+    this.connect = connect ?? ((url, options) => require('socket.io-client').io(url, options));
+  }
+
+  async start({ attempts = 10, retryMs = 1000 } = {}) {
+    // The API may still be starting: retry network errors, never bad credentials.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await this.client.login();
+        break;
+      } catch (err) {
+        if (/Login failed/.test(err.message) || attempt >= attempts) throw err;
+        this.log(`API not reachable at ${this.api} (${err.message}); retrying…`);
+        await sleep(retryMs);
+      }
+    }
+    const socket = this.connect(new URL(this.api).origin, {
+      auth: (done) => done({ token: this.client.token, role: 'replayer' }),
+      reconnectionDelayMax: 5000,
+    });
+    this.socket = socket;
+    socket.on('connect', () => {
+      this.log(`Replayer connected to ${this.api}: waiting for commands from the web`);
+      for (const session of this.sessions.values()) session.report();
+    });
+    // An expired token closes the socket: log in again and reconnect.
+    const renew = async () => {
+      try {
+        await this.client.login();
+        socket.connect();
+      } catch (err) {
+        this.log(`Cannot log in again: ${err.message}`);
+      }
+    };
+    socket.on('disconnect', (reason) => {
+      if (reason === 'io server disconnect') renew();
+    });
+    socket.on('connect_error', (err) => {
+      if (String(err.data?.code).startsWith('TOKEN')) renew();
+    });
+    socket.on('replay:command', (command, ack) => {
+      this.handle(command).then(ack, (err) => ack({ ok: false, code: 'REPLAY_FAILED', error: err.message }));
+    });
+    await new Promise((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('connect_error', (err) => (String(err.data?.code).startsWith('TOKEN') ? null : reject(err)));
+    });
+    return this;
+  }
+
+  session(matchId) {
+    if (this.sessions.has(matchId)) return this.sessions.get(matchId);
+    const file = path.join(this.eventsDir, `${matchId}.json`);
+    if (!/^\d+$/.test(matchId) || !fs.existsSync(file)) return null;
+    const session = new ReplaySession({
+      matchId,
+      events: JSON.parse(fs.readFileSync(file, 'utf8')),
+      client: this.client,
+      speed: this.speed,
+      tickMs: this.tickMs,
+      log: this.log,
+      onState: (state) => this.socket?.connected && this.socket.emit('replay:state', state),
+    });
+    this.sessions.set(matchId, session);
+    return session;
+  }
+
+  async handle({ matchId, action, speed } = {}) {
+    const session = this.session(String(matchId));
+    if (!session) return { ok: false, code: 'NO_EVENTS_FILE' };
+    this.log(`Command for ${matchId}: ${action}${speed ? ` x${speed}` : ''}`);
+    if (action === 'play') await session.play(speed);
+    else if (action === 'pause') await session.pause();
+    else if (action === 'restart') await session.restart(speed);
+    else if (action === 'speed') {
+      session.setSpeed(speed);
+      session.report();
+    } else return { ok: false, code: 'INVALID_ACTION' };
+    return { ok: true, state: session.state() };
+  }
+
+  async close() {
+    for (const session of this.sessions.values()) await session.stop();
+    this.socket?.close();
+  }
+}
+
 function parseArgs(argv) {
   const get = (name) => {
     const i = argv.findIndex((a) => a === `--${name}` || a.startsWith(`--${name}=`));
     if (i === -1) return null;
     return argv[i].includes('=') ? argv[i].split('=').slice(1).join('=') : argv[i + 1];
   };
+  const agent = argv.includes('--agent');
   const matchId = get('match');
-  if (!matchId) throw new Error('Usage: node scripts/replay.js --match=<match_id> [--speed=60] [--reset]');
-  const speed = Number(get('speed') || 60);
+  if (!matchId && !agent) {
+    throw new Error('Usage: node scripts/replay.js --match=<match_id> [--speed=60] [--reset]  |  --agent [--speed=20]');
+  }
+  const speed = Number(get('speed') || (agent ? 20 : 60));
   if (!(speed > 0)) throw new Error('--speed must be a positive number');
   const api = get('api') || process.env.API_URL || `http://localhost:${process.env.PORT || 3000}/api`;
-  const file =
-    get('file') || path.join(__dirname, '..', '..', 'data', 'statsbomb_open_data', 'events', `${matchId}.json`);
-  return { matchId, speed, reset: argv.includes('--reset'), api, file };
+  const eventsDir = get('events-dir') || DEFAULT_EVENTS_DIR;
+  const file = get('file') || path.join(eventsDir, `${matchId}.json`);
+  return { matchId, speed, reset: argv.includes('--reset'), api, file, agent, eventsDir };
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.agent) {
+    const client = new ApiClient(args.api, { email: process.env.REPLAY_EMAIL, password: process.env.REPLAY_PASSWORD });
+    const agent = await new ReplayAgent({ api: args.api, client, eventsDir: args.eventsDir, speed: args.speed }).start();
+    const shutdown = () => agent.close().then(() => process.exit(0));
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+    return;
+  }
   if (!fs.existsSync(args.file)) throw new Error(`No events file: ${args.file} (see data/README.md)`);
   const events = JSON.parse(fs.readFileSync(args.file, 'utf8'));
   const client = new ApiClient(args.api, {
@@ -154,7 +393,9 @@ async function main() {
   await replay({ ...args, events, client });
 }
 
-module.exports = { selectEvents, delaysMs, gameSeconds, ApiClient, replay, parseArgs, USEFUL_TYPES };
+module.exports = {
+  selectEvents, delaysMs, gameSeconds, ApiClient, replay, parseArgs, USEFUL_TYPES, ReplaySession, ReplayAgent,
+};
 
 if (require.main === module) {
   main().catch((err) => {

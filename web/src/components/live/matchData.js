@@ -1,7 +1,85 @@
 export const SHOOTOUT = 5;
+// Team totals stay in expected goals (2,41 xG): a sum of probabilities is not a percentage.
 export const formatXg = (value) => Number.isFinite(value)
   ? value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   : '—';
+
+// A single shot's xG is a probability: shown out of 100.
+const percent = new Intl.NumberFormat('es-ES', { style: 'percent', maximumFractionDigits: 0 });
+export function formatPct(value) {
+  if (!Number.isFinite(value)) return '—';
+  if (value > 0 && value < 0.005) return '<1 %';
+  return percent.format(value);
+}
+
+// Match clock in seconds. StatsBomb minutes run on across periods (45, 90, 105...).
+export const gameSeconds = (event) => event.minute * 60 + (event.second ?? 0);
+
+// How good the chance was, by its xG.
+export const BAND_LIMITS = { possible: 0.1, clear: 0.3 };
+export const BANDS = {
+  clear: { label: 'Ocasión clara', short: 'Clara', range: '≥ 30 %' },
+  possible: { label: 'Ocasión posible', short: 'Posible', range: '10–30 %' },
+  unlikely: { label: 'Ocasión improbable', short: 'Improbable', range: '< 10 %' },
+};
+export function xgBand(xg) {
+  if (!Number.isFinite(xg)) return null;
+  if (xg >= BAND_LIMITS.clear) return 'clear';
+  return xg >= BAND_LIMITS.possible ? 'possible' : 'unlikely';
+}
+
+// What the model said against what happened. Only the two clear contradictions
+// count as model errors: a goal from an unlikely chance and a missed clear one.
+export const VERDICTS = {
+  'expected-goal': { label: 'Gol previsto', goal: true, band: 'clear', error: false },
+  'possible-goal': { label: 'Gol posible', goal: true, band: 'possible', error: false },
+  'unexpected-goal': { label: 'Gol inesperado', goal: true, band: 'unlikely', error: true },
+  'missed-chance': { label: 'Ocasión perdida', goal: false, band: 'clear', error: true },
+  'normal-miss': { label: 'Fallo normal', goal: false, band: 'possible', error: false },
+  'expected-miss': { label: 'Fallo previsto', goal: false, band: 'unlikely', error: false },
+};
+export function shotVerdict(event) {
+  const band = xgBand(event?.xg);
+  if (!band || event.type !== 'Shot') return null;
+  return Object.keys(VERDICTS).find((key) => VERDICTS[key].band === band && VERDICTS[key].goal === Boolean(event.isGoal));
+}
+
+// The model's scorecard over the shots it rated (shoot-out penalties apart).
+// The reference is a "model" that always says no goal, judged by the same rule:
+// it misses every goal and gets every other shot right.
+export function modelReport(match, events) {
+  const shots = events.filter((event) =>
+    event.type === 'Shot' && event.period !== SHOOTOUT && Number.isFinite(event.xg) && teamSide(event, match));
+  const counts = Object.fromEntries(Object.keys(VERDICTS).map((key) => [key, 0]));
+  const teams = { home: { goals: 0, xg: 0, shots: 0 }, away: { goals: 0, xg: 0, shots: 0 } };
+  let surprise = null;
+  let miss = null;
+  for (const shot of shots) {
+    counts[shotVerdict(shot)]++;
+    const team = teams[teamSide(shot, match)];
+    team.shots++;
+    team.xg += shot.xg;
+    if (shot.isGoal) {
+      team.goals++;
+      if (!surprise || shot.xg < surprise.xg) surprise = shot;
+    } else if (!miss || shot.xg > miss.xg) miss = shot;
+  }
+  const total = shots.length;
+  const goals = shots.filter((shot) => shot.isGoal).length;
+  const errors = counts['unexpected-goal'] + counts['missed-chance'];
+  return {
+    total,
+    goals,
+    errors,
+    hits: total - errors,
+    accuracy: total ? (total - errors) / total : null,
+    reference: total ? (total - goals) / total : null,
+    counts,
+    teams,
+    surprise, // the goal with the lowest xG
+    miss, // the missed shot with the highest xG
+  };
+}
 
 export const clock = (event) =>
   `${String(event.minute).padStart(2, '0')}:${String(event.second ?? 0).padStart(2, '0')}`;
