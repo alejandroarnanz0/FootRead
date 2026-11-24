@@ -188,6 +188,8 @@ MatchEvent   matchId · sequence (el `index` de StatsBomb) · period (1-5; 5 = p
              respondió) · xgStatsbomb · card · replacement · raw (evento original)
              único {matchId, sequence}: reenviar un evento no lo duplica
 User         email (único, minúsculas) · name · passwordHash (bcrypt, select: false)
+Lineup       owner → User · name · formation · slots[{slotId, playerId → Player}]
+             budgetEuros (opcional, € enteros) · revision · createdAt · updatedAt
 ```
 
 ### Reglas
@@ -259,6 +261,9 @@ con `trim`, fechas a `Date` UTC, valores en euros enteros.
 | GET/PUT/DELETE | `/api/clubs/:id` | Ficha |
 | GET/POST | `/api/clubs/:id/players` | Jugadores de un club / crear |
 | GET | `/api/players` | Todos los jugadores, con filtros y búsqueda por nombre (`q`, hasta 80 caracteres, ignora mayúsculas y diacríticos latinos) |
+| GET | `/api/lineups/formations` | Catálogo compartido de 29 formaciones y sus huecos |
+| GET/POST | `/api/lineups` | Listar las alineaciones propias / crear una |
+| GET/PATCH/DELETE | `/api/lineups/:lineupId` | Abrir, actualizar o borrar una alineación propia; PATCH y DELETE exigen la revisión vigente |
 | GET/PUT/DELETE | `/api/players/:id` | Ficha (`DELETE` en cascada) |
 | GET | `/api/players/:id/valuations` | Histórico de valor |
 | GET | `/api/players/:id/stats` | Estadísticas por temporada |
@@ -273,6 +278,10 @@ con `trim`, fechas a `Date` UTC, valores en euros enteros.
 | GET | `/api/matches/:matchId/state` | Marcador, xG acumulado, tanda de penaltis, minuto |
 
 Los POST de recursos solo existen en la ruta anidada (`POST /api/players` da 404).
+`GET /api/players` acepta además `clubId`, `subPosition`, `minValue` y
+`excludeIds` (hasta 11 IDs) para Footboard XI; todos se aplican antes de contar
+y paginar. Las rutas de alineaciones usan el JWT existente, validan huecos y
+jugadores únicos y devuelven 409 ante una revisión obsoleta.
 Ejemplos reales de las respuestas más usadas (estado y evento de partido, xG): `AGENTS.md`, secciones 5 y 6.
 
 ---
@@ -300,6 +309,7 @@ iniciar sesión. Textos en español, código en inglés.
 | `/overview` | **Visión general**: KPIs, distribuciones y rankings paginados de mercado y scouting | Disponible |
 | `/matches` | **Partidos**: catálogo de replays con búsqueda por equipo, filtros por competición y eventos y orden por fecha | Disponible |
 | `/compare` | **Comparador** de dos jugadores, con mercado, referencias y estadísticas de liga por temporada | Disponible |
+| `/lineup-builder` | **Footboard XI**: creador de alineaciones privadas con campo interactivo y presupuesto opcional | Disponible |
 | `/model` | **El modelo de xG**: las gráficas de evaluación con una frase cada una | Pendiente |
 
 ### Manipulación directa (requisito)
@@ -371,6 +381,53 @@ una relación de selección general en MongoDB. Los retratos y escudos se
 sirven en local, con iniciales cuando no hay recurso o falla la carga.
 `/credits` recoge la atribución. Fuentes, cobertura y preparación en
 [web/MEDIA.md](web/MEDIA.md).
+
+### Footboard XI
+
+Ruta protegida de carga diferida. Permite editar 29 formaciones, agrupadas por
+3, 4 y 5 defensas, con búsqueda, variantes y miniaturas del campo. El catálogo
+`api/models/lineupFormations.json` define las líneas tácticas que Express
+valida y expone a la web en `GET /api/lineups/formations`. Se conservan las
+claves y huecos de 4-3-3, 4-4-2 y 3-5-2. El hueco central del 4-3-3 equilibrado
+conserva el ID `CDM` y se presenta como MC. El cambio de formación conserva
+destinos compatibles y permite revisar, recolocar o retirar jugadores antes de
+confirmar.
+Se arrastra desde los resultados o desde el campo con `@dnd-kit/react`. Con
+teclado o tacto, se elige un hueco y se confirma el jugador, o se selecciona
+un jugador colocado y se activa «Mover o intercambiar». Escape cancela.
+Arrastrar desde la búsqueda sobre un hueco ocupado pide confirmación.
+
+El catálogo reutiliza `GET /api/players`. Los filtros `clubId`,
+`subPosition` (lista separada por comas) y `minValue` se aplican antes de la
+paginación, junto con los filtros de edad, competición, posición general y
+valor máximo. Las sugerencias distinguen la posición registrada de un rol afín.
+Footboard XI envía `excludeIds` con hasta once identificadores del once
+confirmado. Express los excluye antes de contar y paginar. El buscador ajusta
+la porción ya cargada cuando se coloca o se retira un jugador.
+El catálogo no registra nacionalidad ni posiciones secundarias. Los retratos y
+escudos disponibles se resuelven con el catálogo compartido.
+
+El subtotal usa `currentValue` en euros enteros. Con valores ausentes puede
+confirmar un exceso mínimo, o dejar indeterminado el cumplimiento. Un límite
+desactivado oculta el consumo y los avisos. El valor es el registrado en el
+catálogo, con antigüedad variable, y puede cambiar al abrir un XI guardado.
+
+La colección `Lineup` guarda propietario, nombre, formación, huecos con
+referencias a jugadores, presupuesto, fechas y revisión. `GET/POST /api/lineups`
+lista y crea alineaciones. `GET/PATCH/DELETE /api/lineups/:lineupId` abre,
+actualiza o elimina; PATCH y DELETE requieren la revisión vigente y devuelven
+409 si cambió. Duplicar prepara un borrador y lo crea con POST. Toda consulta
+individual se limita al ID y al propietario del JWT. Si una referencia
+desaparece, el hueco permite retirarla o sustituirla. Guardar resuelve los datos
+actuales por lote; el documento no guarda una instantánea de valoraciones.
+
+Desde la raíz, `node --test web/test/lineup.test.js` comprueba el dominio.
+`npm test` en `api/` comprueba persistencia, autorización, filtros y
+concurrencia en `footboard_test`. Para comprobar la vista con Playwright,
+usar Vite apuntando a la API de pruebas, abrir un usuario de pruebas y
+verificar las asignaciones tras arrastrar, tocar o usar el teclado, además de
+guardar y recuperar un once. Todas las escrituras de esta comprobación van a
+`footboard_test`.
 
 ---
 
@@ -477,11 +534,11 @@ IPs de salida de Render.** El plan gratuito duerme los servicios: calentarlos
 
 ---
 
-## 13. Estado actual (21-11-2026)
+## 13. Estado actual (24-11-2026)
 
 La API, JWT, la heurística, el servicio de xG y el reproductor forman parte de
-la base previa. La fase de Visión general y Partidos amplía las consultas de
-lectura y la navegación sobre el centro de partido existente.
+la base previa. La web incluye Visión general, Partidos, Comparador y
+Footboard XI, además del centro de partido con Socket.IO.
 
 ### Hecho
 - **Datos en `footboard`:** Transfermarkt (5 competiciones, 176 clubes, 11.781
@@ -489,7 +546,7 @@ lectura y la navegación sobre el centro de partido existente.
   heurística (2.445 jugadores), 88.023 `Shot`, 445 `Match` (3 reproducibles) y la
   final del Mundial 2022 reproducida (120 `MatchEvent`; reproducir con `--reset`
   para que guarde también `card` y `replacement`, añadidos después).
-- **API:** todo lo de la sección 9. 61 tests (`npm test`), en
+- **API:** rutas protegidas, incluido Footboard XI. 68 tests (`npm test`), en
   serie, con helpers `test/helpers/` (`testDb`, `apiServer`, `mlStub`).
 - **ML:** pipeline completo, `serve.py` con 9 tests pytest, explorador de datos.
 - **Reproductor** probado de punta a punta: final del Mundial → 3-3, penaltis
@@ -506,6 +563,8 @@ lectura y la navegación sobre el centro de partido existente.
 - **Comparador:** dos jugadores del catálogo, búsquedas paginadas por nombre
   y comparación de mercado y rendimiento por temporada común, con tasas por
   90 minutos.
+- **Footboard XI:** 29 formaciones, edición por arrastre, tacto o teclado,
+  presupuesto opcional y guardado privado con control de revisión.
 - **Identidad visual:** catálogo local con retratos acreditados, escudos de
   clubes y federaciones. Los recursos verificados se reutilizan entre la
   ficha, el Comparador y las listas o los centros de partido pertinentes.

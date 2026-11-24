@@ -47,6 +47,7 @@ app.use('/api', requireAuth);
 app.use('/api/competitions', require('./routes/competitions'));
 app.use('/api/clubs', require('./routes/clubs'));
 app.use('/api/players', require('./routes/players'));
+app.use('/api/lineups', require('./routes/lineups'));
 app.use('/api/aggregates', require('./routes/aggregates'));
 app.use('/api/predictions', require('./routes/predictions'));
 app.use('/api/matches', require('./routes/matches'));

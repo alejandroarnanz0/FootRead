@@ -13,6 +13,7 @@ const OverviewPage = lazy(() => import('./pages/OverviewPage.jsx'));
 const LiveMatchPage = lazy(() => import('./pages/LiveMatchPage.jsx'));
 const MatchesPage = lazy(() => import('./pages/MatchesPage.jsx'));
 const ComparePage = lazy(() => import('./pages/ComparePage.jsx'));
+const LineupBuilderPage = lazy(() => import('./pages/LineupBuilderPage.jsx'));
 const IdentityCreditsPage = lazy(() => import('./pages/IdentityCreditsPage.jsx'));
 
 // Every view needs a session (the API rejects anonymous reads too). Without one,
@@ -70,6 +71,7 @@ export default function App() {
                 <Link to="/matches" className={atMatches || inMatch ? 'active' : undefined}
                   aria-current={atMatches ? 'page' : undefined}>Partidos</Link>
                 <NavLink to="/compare">Comparador</NavLink>
+                <NavLink to="/lineup-builder">Footboard XI</NavLink>
               </nav>
             </>
           ) : (
@@ -83,6 +85,7 @@ export default function App() {
           <Route path="/" element={<RequireAuth><ExplorerPage /></RequireAuth>} />
           <Route path="/players/:playerId" element={<RequireAuth><PlayerPage /></RequireAuth>} />
           <Route path="/compare" element={<RequireAuth><ComparePage /></RequireAuth>} />
+          <Route path="/lineup-builder" element={<RequireAuth><LineupBuilderPage /></RequireAuth>} />
           <Route path="/overview" element={<RequireAuth><OverviewPage /></RequireAuth>} />
           <Route path="/matches" element={<RequireAuth><MatchesPage /></RequireAuth>} />
           <Route path="/login" element={<LoginPage />} />

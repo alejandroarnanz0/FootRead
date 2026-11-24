@@ -3,6 +3,7 @@ const express = require('express');
 const Player = require('../models/Player');
 const Valuation = require('../models/Valuation');
 const SeasonStat = require('../models/SeasonStat');
+const Club = require('../models/Club');
 const asyncHandler = require('../utils/asyncHandler');
 const httpError = require('../utils/httpError');
 const pick = require('../utils/pick');
@@ -33,6 +34,36 @@ const LIST_SELECT =
   'name position subPosition foot heightCm birthDate club currentValue predictedValue contractUntil lastSeason externalIds.transfermarkt';
 const SORT_FIELDS = ['name', 'position', 'birthDate', 'currentValue', 'predictedValue'];
 
+async function applyCatalogFilters(match, { clubId, subPosition, minValue, excludeIds }, maxValue) {
+  if (excludeIds !== undefined && excludeIds !== '') {
+    if (typeof excludeIds !== 'string' || excludeIds.length > 274) throw httpError(400, 'Invalid excludeIds');
+    const ids = excludeIds.split(',');
+    if (ids.length > 11 || ids.some((id) => !/^[a-f0-9]{24}$/i.test(id))) throw httpError(400, 'Invalid excludeIds');
+    match._id = { $nin: ids };
+  }
+  if (clubId !== undefined) {
+    if (typeof clubId !== 'string' || !/^[a-f0-9]{24}$/i.test(clubId)) throw httpError(400, 'Invalid clubId');
+    const club = await Club.findById(clubId).select('_id').lean();
+    const scope = match.club;
+    const compatible = !scope || (scope.$in ?? [scope]).some((id) => String(id) === String(club?._id));
+    match.club = club && compatible ? club._id : { $in: [] };
+  }
+  if (subPosition !== undefined) {
+    if (typeof subPosition !== 'string' || subPosition.length > 300) throw httpError(400, 'Invalid subPosition');
+    const positions = subPosition.split(',').map((value) => value.trim());
+    if (positions.length > 13 || positions.some((value) => !/^[A-Za-z -]{1,40}$/.test(value))) {
+      throw httpError(400, 'Invalid subPosition');
+    }
+    match.subPosition = { $in: positions };
+  }
+  if (minValue !== undefined) {
+    const amount = Number(minValue);
+    if (typeof minValue !== 'string' || !/^\d+$/.test(minValue) || !Number.isSafeInteger(amount)
+      || (maxValue !== undefined && amount > maxValue)) throw httpError(400, 'Invalid minValue');
+    match.currentValue = { ...match.currentValue, $gte: amount };
+  }
+}
+
 // Creating a player needs the club of the URL (req.club).
 const requireClub = (req, res, next) => (req.club ? next() : next(httpError(404, 'Not found')));
 
@@ -61,6 +92,7 @@ router
       const f = req.filters;
       const name = playerNameSearch(req.query.q);
       const match = await buildPlayerFilter(f, req.club ? { club: req.club._id } : {});
+      await applyCatalogFilters(match, req.query, f.maxValue);
       if (name) match.name = name;
       const [data, total] = await Promise.all([
         Player.find(match)

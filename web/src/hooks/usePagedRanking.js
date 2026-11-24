@@ -1,28 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-export function usePagedRanking(loadPage) {
+export function usePagedRanking(loadPage, { revision, refreshPages } = {}) {
   const [request, setRequest] = useState({ page: 1 });
   const [result, setResult] = useState({ request: null, players: [], hasMore: false, error: null });
-  const pending = result.request !== request;
+  const loadedRevision = useRef(revision);
+  const pending = result.request !== request || result.revision !== revision;
 
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
-    loadPage(request.page, signal).then(({ players, hasMore }) => {
+    const replacing = Boolean(refreshPages) && loadedRevision.current !== revision;
+    const load = replacing ? refreshPages : loadPage;
+    load(request.page, signal).then(({ players, hasMore }) => {
       if (signal.aborted) return;
+      loadedRevision.current = revision;
       setResult((previous) => {
         // Keep the original order if consecutive pages overlap.
-        const rows = new Map(previous.players.map((player) => [player._id, player]));
+        const rows = new Map(replacing ? [] : previous.players.map((player) => [player._id, player]));
         for (const player of players) {
           if (!rows.has(player._id)) rows.set(player._id, player);
         }
-        return { request, players: [...rows.values()], hasMore, error: null };
+        return { request, revision, players: [...rows.values()], hasMore, error: null };
       });
     }).catch((error) => {
-      if (!signal.aborted) setResult((previous) => ({ ...previous, request, error }));
+      if (!signal.aborted) setResult((previous) => ({ ...previous, request, revision, error }));
     });
     return () => controller.abort();
-  }, [loadPage, request]);
+  }, [loadPage, refreshPages, request, revision]);
 
   return {
     players: result.players,
