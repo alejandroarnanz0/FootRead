@@ -11,6 +11,8 @@ const matchSchema = new mongoose.Schema({
   awayTeam: { type: String, required: true, trim: true },
   // true when its events JSON is in data/: it can be replayed.
   available: { type: Boolean, default: false },
+  // Set when the replayer reports the last event sent; cleared when the events are reset.
+  finishedAt: { type: Date, default: null },
 });
 
 matchSchema.index({ available: 1, matchDate: -1 });

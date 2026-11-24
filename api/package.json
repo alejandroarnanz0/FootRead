@@ -14,7 +14,8 @@
     "etl:matches": "node scripts/etl/matches.js",
     "replay": "node scripts/replay.js",
     "value": "node scripts/value/run.js",
-    "test": "node --test --test-concurrency=1 \"test/*.test.js\""
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "replay:agent": "node scripts/replay.js --agent"
   },
   "engines": {
     "node": ">=20"
@@ -28,9 +29,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.8.0",
     "morgan": "^1.10.0",
-    "socket.io": "^4.8.4"
-  },
-  "devDependencies": {
+    "socket.io": "^4.8.4",
     "socket.io-client": "^4.8.4"
   }
 }

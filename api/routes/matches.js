@@ -111,6 +111,7 @@ router
   .delete(
     asyncHandler(async (req, res) => {
       await MatchEvent.deleteMany({ matchId: req.match.matchId });
+      await Match.updateOne({ matchId: req.match.matchId }, { $set: { finishedAt: null } });
       notifyMatchChange(req, 'reset');
       res.status(204).end();
     })
