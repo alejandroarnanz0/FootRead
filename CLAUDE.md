@@ -53,17 +53,18 @@ Requisitos añadidos por el profesor en la tutoría del 29-10-2026: sección 14.
   CSV / parquet  →   scripts Node  →   Atlas      →    Express    →     React
   / JSON             (a mano, 1 vez)   footboard        (JSON + JWT)    (navegador)
                                                         │      ▲
-                                                        │      │ avisos de cambios (Socket.IO)
-                                         POST /predict  ▼      │
+                                                        │      │ avisos y estado del replay (Socket.IO)
+                                         POST /predict  ▼      │ órdenes play/pausa/velocidad/reinicio
   REPRODUCTOR  ── POST eventos (JWT) ──►  API  ──►  SERVICIO ML (Python, FastAPI, Docker)
-  (partido ya jugado)                                   XGBoost + SHAP
+  (agente)     ◄── órdenes (Socket.IO, JWT) ──┘          XGBoost + SHAP
 ```
 
 - **ETL**: scripts de Node que se lanzan a mano; no forman parte de la web.
 - **API Express**: sin interfaz; JSON. Hace de intermediaria con el servicio de ML.
 - **Servicio ML** (`ml/serve.py`): aparte, porque XGBoost y SHAP no existen en Node.
 - **Reproductor** (`api/scripts/replay.js`): envía por la API los eventos de un
-  partido ya jugado respetando su ritmo (sección 14.3).
+  partido ya jugado respetando su ritmo. En modo agente lo controla la web
+  (play, pausa, velocidad, reinicio) a través de la API (sección 14.3).
 - **React**: pide datos con axios. La vista en vivo recibe avisos de Socket.IO
   y sincroniza los eventos por REST.
 
@@ -182,6 +183,7 @@ Shot         tiros de la vía A para el dashboard: shotKey (único) · matchId �
              playPattern · xgStatsbomb · isGoal · split
 Match        matchId (StatsBomb, único) · competition · season · matchDate · homeTeam
              awayTeam · available (tiene fichero de eventos → se puede reproducir)
+             finishedAt (lo marca el reproductor al enviar el último evento; un reset lo borra)
 MatchEvent   matchId · sequence (el `index` de StatsBomb) · period (1-5; 5 = penaltis)
              minute · second · type · team · playerName · x · y
              tiros: shotOutcome · shotType · isGoal · xg (nuestro; null si el ML no
@@ -305,7 +307,7 @@ iniciar sesión. Textos en español, código en inglés.
 | `/login` | Entrar o registrarse, con la identidad visual de Footboard | Hecha |
 | `/` | **Explorador**: scatter real vs. referencia (log-log, diagonal), filtros, tabla ordenable; clic → ficha | Identidad visual aplicada; faltan arrastre y CSV |
 | `/players/:id` | **Ficha**: perfil con retrato, escudo, club, liga, edad y cifras de mercado | Disponible. Historial, estadísticas y comparables en ficha pendientes |
-| `/live/:matchId` | **Centro de partido**: marcador, feed de eventos, mapa de tiros interactivo y evolución del xG | Replay con Socket.IO y respaldo REST |
+| `/live/:matchId` | **Centro de partido**: marcador, control del replay (play, pausa, velocidad, reinicio, rebobinar), mapa de tiros con aciertos y errores del modelo, feed con los tiros destacados, lectura del modelo y resumen final | Hecha (rehecha el 24-11, ver 10.1) |
 | `/overview` | **Visión general**: KPIs, distribuciones y rankings paginados de mercado y scouting | Disponible |
 | `/matches` | **Partidos**: catálogo de replays con búsqueda por equipo, filtros por competición y eventos y orden por fecha | Disponible |
 | `/compare` | **Comparador** de dos jugadores, con mercado, referencias y estadísticas de liga por temporada | Disponible |
@@ -336,10 +338,43 @@ La heurística se presenta como **"referencia por comparables"**, nunca como
   de aplicar la búsqueda por equipo, los filtros por competición y eventos y
   el orden por fecha. Muestra resultados por tandas de ocho y distingue carga,
   error y ausencia de resultados. Cada fila enlaza a `/live/:matchId`.
-- **Centro de partido:** sincroniza marcador, cronología, mapa de tiros y
-  evolución del xG a partir de los eventos recibidos. Las fichas sin eventos
-  conservan la información del encuentro y muestran el marcador como no
-  disponible. Los breadcrumbs permiten volver a Partidos o a Visión general.
+- **Centro de partido:** ver 10.1. Los breadcrumbs permiten volver a Partidos
+  o a Visión general.
+
+### 10.1 Centro de partido: la lectura del modelo
+
+La vista existe para enseñar **qué esperaba el modelo de cada tiro y qué pasó**.
+Lógica pura y testeada en `components/live/matchData.js`
+(`node --test web/test/live.test.js`).
+
+- **xG de un tiro en porcentaje** (0,34 → 34 %). Los totales de equipo siguen en
+  goles esperados (2,41 xG): una suma de probabilidades no es un porcentaje.
+- **Franjas** por xG: clara ≥ 30 %, posible 10-30 %, improbable < 10 %.
+  No se usa un umbral de 0,5: en test solo el 3,5 % de los tiros lo supera y el
+  78 % de los goles quedaría como «error» (medido con el xG de StatsBomb).
+- **Seis casos** (franja × resultado): gol previsto, gol posible, **gol
+  inesperado**, **ocasión perdida**, fallo normal, fallo previsto. Solo los dos
+  marcados son **errores del modelo** (anillo ámbar discontinuo en el mapa y en
+  la gráfica, etiqueta ámbar en el feed).
+- **Acierto** = tiros que no son error / tiros con xG (sin la tanda de penaltis).
+  Se compara siempre con la referencia «nunca gol», juzgada con la misma regla
+  (acierta todo salvo los goles): sin modelo ya se saca un 88-90 %.
+- **Mapa:** círculos con el color del equipo; relleno = gol, solo borde = sin gol;
+  área proporcional al xG; el tiro recién llegado aparece con una onda y una
+  tarjeta flotante (jugador, %, caso). Las marcas se escalan con el ancho del
+  campo (container query).
+- **Feed:** los tiros, en tarjetas con barra 0-100 % (marcas en 10 y 30) y caso;
+  el resto, en una línea discreta. Filtros Todo / Tiros / Goles.
+- **Lectura del modelo:** probabilidad de cada tiro en el tiempo (piruletas sobre
+  las bandas de franja), acierto frente a «nunca gol», tabla 2 × 3 de casos y
+  goles frente a xG por equipo. Clic en un tiro lo selecciona en mapa, feed y gráfica.
+- **Control del replay:** play/pausa, reinicio, velocidad (x5-x120) y barra de
+  tiempo para **rebobinar** (solo cambia lo que se muestra; el replay sigue).
+- **Resumen final** (`<dialog>` nativo) al terminar: marcador, acierto, diferencia
+  con «nunca gol», tabla de casos, goles frente a esperados, el gol más
+  inesperado y la ocasión más clara fallada. Se reabre con «Ver resumen».
+- Pendiente (anotado): comparar tiro a tiro con el xG de StatsBomb y explicar
+  cada xG con SHAP (el servicio ya lo calcula; la API aún no lo guarda).
 
 ### Comparador de jugadores
 
@@ -546,7 +581,7 @@ Footboard XI, además del centro de partido con Socket.IO.
   heurística (2.445 jugadores), 88.023 `Shot`, 445 `Match` (3 reproducibles) y la
   final del Mundial 2022 reproducida (120 `MatchEvent`; reproducir con `--reset`
   para que guarde también `card` y `replacement`, añadidos después).
-- **API:** rutas protegidas, incluido Footboard XI. 68 tests (`npm test`), en
+- **API:** rutas protegidas, incluido Footboard XI. 76 tests (`npm test`), en
   serie, con helpers `test/helpers/` (`testDb`, `apiServer`, `mlStub`).
 - **ML:** pipeline completo, `serve.py` con 9 tests pytest, explorador de datos.
 - **Reproductor** probado de punta a punta: final del Mundial → 3-3, penaltis
@@ -555,8 +590,11 @@ Footboard XI, además del centro de partido con Socket.IO.
   `prefers-color-scheme`, aplicado al Explorador y a Login/Register.
   `PageHeader` y `Button` son reutilizables; la navegación pública oculta
   las áreas protegidas hasta iniciar sesión. Faltan arrastre y CSV.
-- **Centro de partido:** `/live/:matchId` sigue los avisos del replay por Socket.IO y recupera los eventos por REST.
-  Marcador, mapa, feed y gráfico se actualizan a partir de los mismos eventos.
+- **Centro de partido (rehecho el 24-11, rama `feat/live-model-view`):** el
+  replay se controla desde la web (reproductor en modo agente, 14.3) y la vista
+  se centra en los aciertos y errores del modelo (10.1). Probado de punta a punta
+  contra `footboard_test` con el servicio de xG real: final del Mundial 3-3,
+  penaltis 4-2, xG 3,11-1,96, acierto 97 % frente al 80 % de «nunca gol».
 - **Visión general:** resumen de mercado agregado en MongoDB y rankings
   con carga progresiva y acceso a fichas.
 - **Partidos:** catálogo de replays en una ruta propia, con filtros y búsqueda.
@@ -604,9 +642,21 @@ El usuario simulado: se autentica, **crea** datos claramente ficticios,
 **consulta** con filtros, **modifica** y **borra** todo lo que creó.
 
 ### 14.3 Procesamiento en tiempo real — parte central
-`api/scripts/replay.js` reproduce un partido ya jugado:
-`npm run replay -- --match=<id> [--speed=60] [--reset]` (credenciales
-`REPLAY_EMAIL`/`REPLAY_PASSWORD`).
+`api/scripts/replay.js` reproduce un partido ya jugado, de dos formas
+(credenciales `REPLAY_EMAIL`/`REPLAY_PASSWORD`):
+- **Agente, controlado desde la web (lo normal):** `npm run replay:agent --
+  [--api=http://localhost:3001/api] [--speed=20]`. Hace login, se conecta por
+  Socket.IO con su JWT y el rol `replayer`, y espera órdenes. Lee el JSON de
+  eventos del partido que le pidan (`data/statsbomb_open_data/events/<id>.json`).
+  Los eventos siguen viajando por **POST con JWT**, igual que antes.
+- **Una pasada, sin web:** `npm run replay -- --match=<id> [--speed=60] [--reset]`.
+
+El agente lleva un reloj virtual por partido (`ReplaySession`): antes de cada
+evento espera el hueco de juego con el anterior dividido por la velocidad, y se
+puede pausar o cambiar de velocidad en cualquier momento. Play sobre un partido
+nuevo o terminado empieza de cero (borra sus eventos); el reinicio para el bucle,
+espera al POST en vuelo y borra antes de empezar. Si la API aún no responde al
+arrancar, reintenta el login; si caduca el token, vuelve a entrar y reconecta.
 - Envía solo los tipos útiles: `Shot`, `Own Goal For/Against`, `Foul Committed`,
   `Bad Behaviour`, `Substitution` y `Pass` con `shot_assist` o `goal_assist`
   (~105-133 de ~4.000 eventos por partido), en orden de `index`.
@@ -636,9 +686,16 @@ StatsBomb y la existencia del partido. Cada socket se suscribe a un partido.
 
 | Dirección | Evento | Datos |
 | --- | --- | --- |
-| Cliente → servidor | `match:join` | `{ matchId }`. Devuelve `{ ok: true, matchId }` al entrar en `match:<id>` o `{ ok: false, code }` |
+| Cliente → servidor | `match:join` | `{ matchId }`. Devuelve `{ ok: true, matchId }` al entrar en `match:<id>` o `{ ok: false, code }`; después recibe `replay:state` |
 | Cliente → servidor | `match:leave` | `{ matchId }`. Confirmación idempotente |
 | Servidor → sala | `match:changed` | `{ matchId, reason: 'event' \| 'reset' }` |
+| Web → API → reproductor | `replay:command` | `{ matchId, action: 'play' \| 'pause' \| 'speed' \| 'restart', speed? }` (1-240). Devuelve la respuesta del reproductor `{ ok, state }` o `{ ok: false, code }`: `REPLAYER_OFFLINE`, `REPLAYER_TIMEOUT`, `NO_EVENTS_FILE`, `INVALID_*` |
+| Reproductor → API → sala | `replay:state` | `{ matchId, status: 'idle' \| 'playing' \| 'paused' \| 'finished', speed, clock, duration, sent, total, online }`. Al llegar `finished`, la API guarda `Match.finishedAt` |
+
+El rol sale de `auth.role` en el handshake (`replayer` o, por defecto, `viewer`).
+Solo los sockets `replayer` pueden publicar `replay:state`; las órdenes solo las
+envía la web. Al conectarse o desconectarse el reproductor, todas las salas
+reciben su estado con `online` actualizado.
 
 Una inserción confirmada (`201`) emite `event`. Un borrado confirmado
 (`204`) emite `reset`. Un duplicado (`200`) conserva la respuesta REST y
@@ -679,9 +736,12 @@ preexistente de `csv-parse` (versión instalada 5.6.0).
    en dos sesiones autenticadas y otro partido en una tercera. Enviar
    eventos con el POST ya existente, o con el reproductor cuando estén
    disponibles sus archivos y credenciales autorizadas para pruebas.
-   Por ejemplo, desde `api/`, con el partido disponible en esa base:
-   `npm run replay -- --match=3869685 --api=http://localhost:3001/api --speed=20 --reset`.
-   Las pruebas automatizadas usan fixtures y no necesitan esos JSON históricos.
+   Lo normal: desde `api/`, `npm run replay:agent -- --api=http://localhost:3001/api`
+   y pulsar «Reproducir» en `/live/<id>`. El usuario de `REPLAY_EMAIL` tiene
+   que existir en `footboard_test` (registrarlo una vez) y el partido también
+   (`npm run etl:matches -- --test-db`; `npm test` vacía `Match` y `MatchEvent`).
+   Las pruebas automatizadas usan fixtures y no necesitan esos JSON históricos
+   (`test/replayAgent.test.js` cubre órdenes, pausa, velocidad, reinicio y fin).
 
 Partidos de la demo (`ml/config.yaml`, forzados a test en el xG): 3869685
 Argentina-Francia (final del Mundial 2022), 2302764 Milan-Liverpool (final de
