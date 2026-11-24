@@ -16,6 +16,7 @@ function receiptAge(event, now) {
 export function useLiveMatch(matchId) {
   const [snapshot, setSnapshot] = useState(EMPTY);
   const [connection, setConnection] = useState('connecting');
+  const [replay, setReplay] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const [now, setNow] = useState(Date.now);
   const hasEvents = snapshot.events.length > 0;
@@ -69,7 +70,8 @@ export function useLiveMatch(matchId) {
       const reset = includeEvents && resetPending;
       if (includeEvents) resetPending = false;
       try {
-        if (!match) {
+        // After a reset the match is read again: its end mark is cleared.
+        if (!match || reset) {
           match = await getMatch(matchId, signal);
           if (signal.aborted) return;
           // Show the match details while its first event request is still pending.
@@ -122,7 +124,11 @@ export function useLiveMatch(matchId) {
     setConnection('connecting');
     refresh();
     try {
-      unsubscribe = subscribeToMatch(matchId, { onStatus: connectionChanged, onChange: matchChanged });
+      unsubscribe = subscribeToMatch(matchId, {
+        onStatus: connectionChanged,
+        onChange: matchChanged,
+        onReplay: (state) => { if (!signal.aborted) setReplay(state); },
+      });
     } catch {
       connectionChanged('error');
     }
@@ -143,5 +149,15 @@ export function useLiveMatch(matchId) {
   const activityAge = snapshot.activity ? Math.max(0, now - snapshot.activity.at) : Infinity;
   const live = !snapshot.error && elapsed !== null && elapsed < LIVE_WINDOW_MS;
 
-  return { ...snapshot, connection, elapsed, activityAge, live, retry: () => setAttempt((value) => value + 1) };
+  // The replayer is only reachable through a healthy socket.
+  const replayState = replay && { ...replay, online: replay.online && connection === 'connected' };
+  // Finished: reported live by the replayer, or stored on the match for a later visit.
+  const finished = replay && replay.status !== 'idle'
+    ? replay.status === 'finished'
+    : Boolean(snapshot.match?.finishedAt) && snapshot.events.length > 0;
+
+  return {
+    ...snapshot, connection, elapsed, activityAge, live, replay: replayState, finished,
+    retry: () => setAttempt((value) => value + 1),
+  };
 }
