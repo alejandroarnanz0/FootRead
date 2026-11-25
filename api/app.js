@@ -41,6 +41,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', db: mongoose.connection.name || null });
 });
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/games', require('./routes/games'));
 // Everything below needs a JWT, reads included (401 otherwise). Only
 // /api/health and /api/auth stay public.
 app.use('/api', requireAuth);

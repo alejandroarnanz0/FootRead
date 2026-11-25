@@ -192,6 +192,8 @@ MatchEvent   matchId · sequence (el `index` de StatsBomb) · period (1-5; 5 = p
 User         email (único, minúsculas) · name · passwordHash (bcrypt, select: false)
 Lineup       owner → User · name · formation · slots[{slotId, playerId → Player}]
              budgetEuros (opcional, € enteros) · revision · createdAt · updatedAt
+GameSession  owner → User · state (rondas, respuestas, plazo y puntuación)
+             revision · finishedAt · cancelledAt · expiresAt (TTL de partidas incompletas)
 ```
 
 ### Reglas
@@ -247,7 +249,9 @@ con `trim`, fechas a `Date` UTC, valores en euros enteros.
 
 ### Autenticación (JWT)
 **Toda la API exige `Authorization: Bearer <token>`, lecturas incluidas**, salvo
-`GET /api/health` y `/api/auth/*`. Token HS256, caduca a la hora.
+`GET /api/health`, el acceso en `/api/auth/*` y el catálogo y las partidas de
+invitado en `/api/games/*`. Las estadísticas personales requieren JWT. Token
+HS256, caduca a la hora.
 
 ### Endpoints
 
@@ -267,6 +271,11 @@ con `trim`, fechas a `Date` UTC, valores en euros enteros.
 | GET/POST | `/api/lineups` | Listar las alineaciones propias / crear una |
 | GET/PATCH/DELETE | `/api/lineups/:lineupId` | Abrir, actualizar o borrar una alineación propia; PATCH y DELETE exigen la revisión vigente |
 | GET/PUT/DELETE | `/api/players/:id` | Ficha (`DELETE` en cascada) |
+| GET | `/api/games/catalog` | Catálogo público, dificultades y reglas de duración |
+| POST | `/api/games/sessions` | Inicia una partida para invitado o usuario autenticado |
+| GET/POST | `/api/games/sessions/:id` / `/api/games/sessions/:id/actions` | Recupera la ronda o envía respuesta, pista, fin por tiempo o avance |
+| POST | `/api/games/sessions/:id/cancel` | Cancela idempotentemente una partida propia o de invitado; conserva las completadas |
+| GET | `/api/games/stats` | Récord, partidas, acierto por juego y 20 resultados recientes del usuario autenticado |
 | GET | `/api/players/:id/valuations` | Histórico de valor |
 | GET | `/api/players/:id/stats` | Estadísticas por temporada |
 | GET | `/api/players/:id/comparables` | Los comparables de la heurística (solo lectura) |
@@ -312,6 +321,7 @@ iniciar sesión. Textos en español, código en inglés.
 | `/matches` | **Partidos**: catálogo de replays con búsqueda por equipo, filtros por competición y eventos y orden por fecha | Disponible |
 | `/compare` | **Comparador** de dos jugadores, con mercado, referencias y estadísticas de liga por temporada | Disponible |
 | `/lineup-builder` | **Footboard XI**: creador de alineaciones privadas con campo interactivo y presupuesto opcional | Disponible |
+| `/games`, `/games/:game` | **Footboard Games**: catálogo público, configuración, rondas y resultados. Historial personal con sesión | Disponible |
 | `/model` | **El modelo de xG**: las gráficas de evaluación con una frase cada una | Pendiente |
 
 ### Manipulación directa (requisito)
@@ -569,7 +579,7 @@ IPs de salida de Render.** El plan gratuito duerme los servicios: calentarlos
 
 ---
 
-## 13. Estado actual (24-11-2026)
+## 13. Estado actual (25-11-2026)
 
 La API, JWT, la heurística, el servicio de xG y el reproductor forman parte de
 la base previa. La web incluye Visión general, Partidos, Comparador y
@@ -606,6 +616,25 @@ Footboard XI, además del centro de partido con Socket.IO.
 - **Identidad visual:** catálogo local con retratos acreditados, escudos de
   clubes y federaciones. Los recursos verificados se reutilizan entre la
   ficha, el Comparador y las listas o los centros de partido pertinentes.
+- **Footboard Games:** `/games` y `/games/:game` ofrecen cuatro juegos con el
+  catálogo existente de MongoDB: valor, edad, goles y pistas. Cada partida
+  consta de diez rondas de 30 s. Las partidas de invitado conservan el progreso
+  en una instancia durante una hora y usan un token opaco. Las autenticadas se
+  guardan en `GameSession`; las incompletas caducan y las finalizadas alimentan
+  el historial privado. Reiniciar cancela la sesión y crea otra; abandonar
+  cancela sin añadir resultados al historial. El servidor calcula plazos,
+  soluciones y puntuaciones.
+  Un acierto suma 100/150/200 puntos según dificultad, más los segundos enteros
+  restantes y menos 15 puntos por pista adicional. Valor exige fecha exacta y
+  usa razones de 2 y 1,25. Edad usa diferencias de 5 y 2 años. Goles exige
+  misma liga y temporada, 450 minutos y diferencias de 5, 2–4 o 1 gol.
+  La dificultad también limita la población: fácil usa exclusivamente 64
+  estrellas verificadas por ID de Transfermarkt; medio incorpora 103 futbolistas
+  conocidos; difícil utiliza toda la base elegible. Goles prioriza temporadas
+  desde 2024-25 en fácil y desde 2022-23 en medio. En pistas, la posición
+  reduce las cuatro opciones a dos en fácil, a tres en medio y no discrimina
+  en difícil; allí coinciden también la liga y edades próximas. La fecha de
+  nacimiento final distingue la solución.
 
 ### Pendiente (reparto)
 - **Compañero (ver `AGENTS.md`):** todo el frontend (diseño y vistas a su
@@ -629,7 +658,7 @@ Footboard XI, además del centro de partido con Socket.IO.
 Modelo `User` (bcrypt, nunca en claro), `register`/`login` devuelven el token,
 middleware `requireAuth` (401 si falta, es inválido o caducó), secreto en el
 `.env` (≥ 32 bytes), caducidad 1 h, interceptor de axios. Se protege **toda** la
-API salvo `/api/health` y `/api/auth`.
+API con las excepciones de la sección 9.
 
 ### 14.2 Datos que entran por la API — enfoque mixto aceptado
 | Script | Vía | Para qué |
