@@ -15,6 +15,8 @@ const MatchesPage = lazy(() => import('./pages/MatchesPage.jsx'));
 const ComparePage = lazy(() => import('./pages/ComparePage.jsx'));
 const LineupBuilderPage = lazy(() => import('./pages/LineupBuilderPage.jsx'));
 const IdentityCreditsPage = lazy(() => import('./pages/IdentityCreditsPage.jsx'));
+const GamesPage = lazy(() => import('./pages/GamesPage.jsx'));
+const GamePage = lazy(() => import('./pages/GamePage.jsx'));
 
 // Every view needs a session (the API rejects anonymous reads too). Without one,
 // go to login and come back here afterwards.
@@ -72,10 +74,14 @@ export default function App() {
                   aria-current={atMatches ? 'page' : undefined}>Partidos</Link>
                 <NavLink to="/compare">Comparador</NavLink>
                 <NavLink to="/lineup-builder">Footboard XI</NavLink>
+                <NavLink to="/games">Games</NavLink>
               </nav>
             </>
           ) : (
-            <span className="brand">Footboard</span>
+            <>
+              <span className="brand">Footboard</span>
+              <nav aria-label="Navegación pública"><NavLink to="/games">Games</NavLink></nav>
+            </>
           )}
           <SessionArea />
         </div>
@@ -89,6 +95,8 @@ export default function App() {
           <Route path="/overview" element={<RequireAuth><OverviewPage /></RequireAuth>} />
           <Route path="/matches" element={<RequireAuth><MatchesPage /></RequireAuth>} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/games" element={<Suspense fallback={<Loading />}><GamesPage /></Suspense>} />
+          <Route path="/games/:game" element={<Suspense fallback={<Loading />}><GamePage /></Suspense>} />
           <Route path="/credits" element={<Suspense fallback={<Loading />}><IdentityCreditsPage /></Suspense>} />
           <Route path="/live/:matchId" element={<RequireAuth><LiveMatchPage /></RequireAuth>} />
           <Route path="*" element={<NotFoundPage />} />
