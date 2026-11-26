@@ -4,6 +4,7 @@
 // and writes footboard.
 //
 //   npm run start:test        ->  http://localhost:3001/api
+process.env.FOOTBOARD_TEST_DB = 'manual'; // the hand-testing database, never emptied by npm test
 require('../test/helpers/testDb'); // points MONGODB_URI at MONGODB_URI_TEST (refuses if not *_test)
 process.env.NODE_ENV = 'development'; // keep the request log on
 process.env.PORT = process.env.TEST_API_PORT || '3001';

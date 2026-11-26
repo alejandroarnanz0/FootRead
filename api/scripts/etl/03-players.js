@@ -40,6 +40,7 @@ async function loadPlayers({ dataDir }) {
         currentValue: n.toInt(row.market_value_in_eur),
         contractUntil: n.toDate(row.contract_expiration_date),
         lastSeason: n.toInt(row.last_season),
+        imageUrl: n.imageUrl(row.image_url),
         'externalIds.transfermarkt': tmId,
       }
     );

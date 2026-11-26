@@ -174,6 +174,10 @@ Club         name · competition → Competition · country · externalIds{trans
 Player       name · birthDate · position (GK|DF|MF|FW) · subPosition · foot · heightCm (140-220)
              club → Club · currentValue (€) · predictedValue (€, lo escribe la heurística)
              contractUntil · lastSeason (año de inicio) · externalIds{transfermarkt, fbref}
+             imageUrl (retrato de Transfermarkt; solo lo escribe el ETL y solo admite su
+             servidor de imágenes; la silueta genérica `default.jpg` cuenta como sin foto)
+             bio{text, url, lang} (primer párrafo de su artículo de Wikipedia, CC BY-SA;
+             solo lo escribe `etl:bios`; url solo admite artículos de es/en.wikipedia.org)
 Valuation    player → Player · date · value (€)          único {player, date}
 SeasonStat   player · season ("2023-24") · competition · minutes · goals · assists
              (shots, passesCompleted, tackles vacíos)   único {player, season, competition}
@@ -220,6 +224,7 @@ descartados por motivo. Flag `--test-db` para escribir en `footboard_test`.
 | `npm run etl:wipe -- --force` | Vacía las 5 colecciones de Transfermarkt |
 | `npm run etl:shots` | `Shot` desde `data/statsbomb_shots/shots.csv` (lo genera el pipeline de `ml/`) |
 | `npm run etl:matches` | `Match` desde `data/statsbomb_open_data/matches/**` |
+| `npm run etl:bios` | `Player.bio` desde Wikipedia, cruzando por el id de Transfermarkt en Wikidata (P2446). Necesita Internet; fuera de `etl`. `--langs=es` (por defecto) o `es,en` (inglés si no hay español), `--only-missing`, `--limit=N`, `--test-db` |
 
 Alcance de Transfermarkt (confirmado): las cinco grandes ligas; jugadores cuyo
 club **actual** está en una liga cargada (incluye retirados, que se distinguen
@@ -565,10 +570,16 @@ y sigue; **el ML nunca bloquea**.
   `feat(api): ...`, `fix(web): ...`).
 - Ramas siempre; nunca trabajar sobre `main`. Se fusiona por PR.
 - Un único `.env` en la raíz; sin secretos en el repo. `.env.example` con marcadores.
-- **Base de datos:** se **lee** de `footboard`; los scripts y tests **escriben
-  solo en `footboard_test`**. Escribir en `footboard` (ETL, heurística) solo con
+- **Base de datos:** se **lee** de `footboard`; los scripts **escriben solo en
+  `footboard_test`**. Escribir en `footboard` (ETL, heurística) solo con
   permiso explícito de Alejandro.
-- Tests: `npm test` en `api/` (en serie, contra `footboard_test`); `pytest` en `ml/`.
+- **Dos bases de pruebas, nunca mezclarlas:**
+  - `footboard_test` (`MONGODB_URI_TEST`): la de las pruebas a mano
+    (`npm run start:test`, ETL con `--test-db`). **Ningún test la vacía.**
+  - `footboard_ci_test` (mismo URI con `_ci_test`, lo calcula
+    `test/helpers/testDb.js`): la de `npm test`, que la vacía cuando quiere.
+  Ningún test debe escribir a mano el nombre de la base: comprobar que termina en `_test`.
+- Tests: `npm test` en `api/` (en serie, contra `footboard_ci_test`); `pytest` en `ml/`.
 - Finales de línea LF (`.gitattributes`, `core.autocrlf input`).
 - No tocar `ml/BaselineModel/` sin revisión de Alejandro.
 
@@ -579,7 +590,7 @@ IPs de salida de Render.** El plan gratuito duerme los servicios: calentarlos
 
 ---
 
-## 13. Estado actual (25-11-2026)
+## 13. Estado actual (26-11-2026)
 
 La API, JWT, la heurística, el servicio de xG y el reproductor forman parte de
 la base previa. La web incluye Visión general, Partidos, Comparador y
@@ -591,7 +602,7 @@ Footboard XI, además del centro de partido con Socket.IO.
   heurística (2.445 jugadores), 88.023 `Shot`, 445 `Match` (3 reproducibles) y la
   final del Mundial 2022 reproducida (120 `MatchEvent`; reproducir con `--reset`
   para que guarde también `card` y `replacement`, añadidos después).
-- **API:** rutas protegidas, incluido Footboard XI. 76 tests (`npm test`), en
+- **API:** rutas protegidas, incluido Footboard XI. 103 tests (`npm test`), en
   serie, con helpers `test/helpers/` (`testDb`, `apiServer`, `mlStub`).
 - **ML:** pipeline completo, `serve.py` con 9 tests pytest, explorador de datos.
 - **Reproductor** probado de punta a punta: final del Mundial → 3-3, penaltis
@@ -613,6 +624,11 @@ Footboard XI, además del centro de partido con Socket.IO.
   90 minutos.
 - **Footboard XI:** 29 formaciones, edición por arrastre, tacto o teclado,
   presupuesto opcional y guardado privado con control de revisión.
+- **Fotos de jugadores (25-11, rama `feat/player-photos`):** `Player.imageUrl` desde `players.csv`; 10.270 de los 11.781 jugadores tienen foto (el resto, iniciales). Orden: retrato local verificado → foto de Transfermarkt → iniciales. Cargado también en `footboard` (25-11).
+- **Escudos de clubes y selecciones (25-11, misma rama):** sin cambios en la base ni en el ETL. La web monta la URL de Transfermarkt con el id del equipo (`tmssl.akamaized.net/images/wappen/head/<id>.png`, `transfermarktCrest` en `identityCatalog.js`). Orden: escudo local verificado → Transfermarkt → monograma (también si da 404). Cubre los 176 clubes, las selecciones y los equipos de los partidos.
+- **Descripciones de jugadores (25-11, misma rama):** `Player.bio` con el primer párrafo de Wikipedia en español (`npm run etl:bios`, 06-bios.js). Cruce exacto por el id de Transfermarkt en Wikidata. Cobertura medida: 6.531 de 11.781 jugadores (55 %) en español, 95 % de los de ≥ 10 M€; con `--langs=es,en` llegaría a 10.053 (85 %), decidido dejarlo solo en español por ahora. Wikipedia limita las ráfagas (429): el script pide 20 artículos por petición (Action API, TextExtracts), una por segundo, y respeta Retry-After; la carga completa tarda ~30 min. Cargado en `footboard_test`: 6.531 con descripción, 4.086 sin artículo en español, 1.164 sin Wikidata. La ficha muestra «Sobre el jugador» con enlace al artículo y la licencia. Cargado también en `footboard` (26-11): 6.531 con descripción.
+- **`footboard_test` vaciada otra vez el 25-11 (~18:45)** por alguien que pasó `npm test` con el código de `main` (sus tests aún usan `footboard_test`; la separación en `footboard_ci_test` solo está en `feat/player-photos`). Recargada. Hasta que esa rama llegue a `main` puede volver a pasar.
+- **Tests en su propia base (25-11):** `npm test` usa `footboard_ci_test`; `footboard_test` queda para las pruebas a mano (sección 12).
 - **Identidad visual:** catálogo local con retratos acreditados, escudos de
   clubes y federaciones. Los recursos verificados se reutilizan entre la
   ficha, el Comparador y las listas o los centros de partido pertinentes.
@@ -768,7 +784,7 @@ preexistente de `csv-parse` (versión instalada 5.6.0).
    Lo normal: desde `api/`, `npm run replay:agent -- --api=http://localhost:3001/api`
    y pulsar «Reproducir» en `/live/<id>`. El usuario de `REPLAY_EMAIL` tiene
    que existir en `footboard_test` (registrarlo una vez) y el partido también
-   (`npm run etl:matches -- --test-db`; `npm test` vacía `Match` y `MatchEvent`).
+   (`npm run etl:matches -- --test-db`). `npm test` ya no toca esta base.
    Las pruebas automatizadas usan fixtures y no necesitan esos JSON históricos
    (`test/replayAgent.test.js` cubre órdenes, pausa, velocidad, reinicio y fin).
 

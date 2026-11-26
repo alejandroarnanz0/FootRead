@@ -19,7 +19,7 @@ describe('private lineups and catalog filters', () => {
 
   before(async () => {
     srv = await startApi();
-    assert.equal(mongoose.connection.name, 'footboard_test');
+    assert.ok(mongoose.connection.name.endsWith('_test'));
     competition = await Competition.create({ code: `XI-${randomUUID()}`, name: 'Lineup test competition' });
     club = await Club.create({ name: 'Lineup test club', competition: competition._id });
     [player, otherPlayer, removed] = await Player.create([
@@ -34,7 +34,7 @@ describe('private lineups and catalog filters', () => {
   });
 
   after(async () => {
-    if (!srv || mongoose.connection.name !== 'footboard_test') return;
+    if (!srv || !mongoose.connection.name.endsWith('_test')) return;
     const owner = await User.findOne({ email: 'helper@example.com' });
     await Lineup.deleteMany({ owner: { $in: [owner?._id, otherUser].filter(Boolean) } });
     await Player.deleteMany({ _id: { $in: [player, otherPlayer, removed].filter(Boolean).map((row) => row._id) } });

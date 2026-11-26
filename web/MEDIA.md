@@ -10,14 +10,19 @@ ausente y los enlaces de atribución requieren Internet.
 | Entidad | Identificación | Si falta la imagen |
 | --- | --- | --- |
 | Jugador | ID de Transfermarkt y fecha de nacimiento ISO del registro | Iniciales |
-| Club | ID único de Transfermarkt del club devuelto por la API | Monograma |
-| Selección | ID de Transfermarkt del catálogo de selecciones CSV | Monograma |
+| Club | ID único de Transfermarkt del club devuelto por la API | Escudo de Transfermarkt; si no existe, monograma |
+| Selección | ID de Transfermarkt del catálogo de selecciones CSV | Escudo de Transfermarkt; si no existe, monograma |
 | Equipo de un partido | ID de StatsBomb del encuentro, lado, competición, temporada y nombre exacto en `matchTeams.json` | Monograma |
 
 MongoDB contiene 11.781 jugadores, 176 clubes y 5 competiciones según la consulta
 de lectura de esta fase. No tiene colección de selecciones. El CSV original
 contiene 124 selecciones y datos de ciudadanía y selección en el CSV de jugadores,
-que el ETL no importa. Las URLs de Transfermarkt de estos CSV no se reutilizan.
+que el ETL no importa. Los retratos que no están en el catálogo local se muestran desde la URL `image_url`
+de `players.csv` (servidores de Transfermarkt), guardada por el ETL en
+`Player.imageUrl`; la silueta genérica (`default.jpg`) cuenta como sin foto.
+Los escudos de clubes y selecciones sin fichero local se muestran desde
+`https://tmssl.akamaized.net/images/wappen/head/<id>.png`, con el ID de
+Transfermarkt del equipo; si esa imagen no existe, se ve el monograma.
 Match conserva los nombres de los equipos. Los cruces verificados se basan en el
 encuentro concreto y conservan la distinción entre club y selección.
 

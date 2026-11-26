@@ -53,6 +53,7 @@ router.get(
                 name: 1,
                 position: 1,
                 birthDate: 1,
+                imageUrl: 1,
                 'externalIds.transfermarkt': 1,
                 club: 1,
                 currentValue: 1,

@@ -23,6 +23,24 @@ export default function IdentityCreditsPage() {
           </ul>
         </section>
       ))}
+      <section className="card identity-credits" aria-labelledby="credits-transfermarkt">
+        <h2 id="credits-transfermarkt">Resto de retratos y escudos</h2>
+        <p>
+          Los retratos de los jugadores y los escudos de clubes y selecciones que no aparecen arriba proceden de{' '}
+          <a href="https://www.transfermarkt.es">Transfermarkt</a>, a través del dataset público de
+          {' '}<a href="https://www.kaggle.com/datasets/davidcariboo/player-scores">dcaribou en Kaggle</a>
+          {' '}(los escudos, a partir del identificador de Transfermarkt de cada equipo). Se muestran desde los servidores de Transfermarkt y los derechos son de sus titulares.
+        </p>
+      </section>
+      <section className="card identity-credits" aria-labelledby="credits-wikipedia">
+        <h2 id="credits-wikipedia">Descripciones de jugadores</h2>
+        <p>
+          Son el primer párrafo del artículo de cada jugador en{' '}
+          <a href="https://es.wikipedia.org">Wikipedia</a>, enlazado en su ficha, con licencia{' '}
+          <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.es">CC BY-SA 4.0</a>. El cruce con cada
+          jugador se hace por su identificador de Transfermarkt en <a href="https://www.wikidata.org">Wikidata</a>.
+        </p>
+      </section>
     </>
   );
 }

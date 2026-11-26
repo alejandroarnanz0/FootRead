@@ -12,6 +12,7 @@
     "etl:wipe": "node scripts/etl/wipe.js",
     "etl:shots": "node scripts/etl/shots.js",
     "etl:matches": "node scripts/etl/matches.js",
+    "etl:bios": "node scripts/etl/06-bios.js",
     "replay": "node scripts/replay.js",
     "value": "node scripts/value/run.js",
     "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
