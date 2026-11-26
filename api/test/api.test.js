@@ -1,17 +1,9 @@
-const path = require('path');
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
-
-// Integration tests run against a disposable database, never the real one.
-const testUri = process.env.MONGODB_URI_TEST;
-const dbName = testUri && new URL(testUri).pathname.slice(1);
-if (!dbName || !dbName.endsWith('_test')) {
-  throw new Error('MONGODB_URI_TEST must point to a database whose name ends in _test');
-}
-process.env.MONGODB_URI = testUri;
-process.env.NODE_ENV = 'test';
+// Integration tests run against their own disposable database (footboard_ci_test),
+// never the real one nor the one used for manual tests (helpers/testDb.js).
+const { testUri } = require('./helpers/testDb');
 
 const http = require('http');
 const mongoose = require('mongoose');

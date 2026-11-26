@@ -41,3 +41,14 @@ test('cleans names and empty values', () => {
   assert.equal(n.toInt('1500000.0'), 1500000);
   assert.equal(n.toInt(''), null);
 });
+
+test('keeps Transfermarkt portraits and drops the generic silhouette or other hosts', () => {
+  const photo = 'https://img.a.transfermarkt.technology/portrait/header/10-1448468291.jpg?lm=1';
+  assert.equal(n.imageUrl(photo), photo);
+  assert.equal(n.imageUrl(' ' + photo + ' '), photo);
+  assert.equal(n.imageUrl('https://img.a.transfermarkt.technology/portrait/header/default.jpg?lm=1'), null);
+  assert.equal(n.imageUrl('https://evil.example/portrait/header/10.jpg'), null);
+  assert.equal(n.imageUrl('http://img.a.transfermarkt.technology/portrait/header/10.jpg'), null);
+  assert.equal(n.imageUrl('javascript:alert(1)'), null);
+  assert.equal(n.imageUrl(''), null);
+});

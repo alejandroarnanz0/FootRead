@@ -17,6 +17,7 @@ function ImageFrame({ asset, name, alt, fallbackLabel, className, decorative, ea
           alt={decorative ? '' : alt}
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
+          referrerPolicy={asset.external ? 'no-referrer' : undefined}
           aria-hidden={status !== 'ready'}
           style={asset.position ? { objectPosition: asset.position } : undefined}
           onLoad={() => setStatus('ready')}

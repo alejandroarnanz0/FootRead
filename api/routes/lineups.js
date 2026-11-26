@@ -7,7 +7,7 @@ const httpError = require('../utils/httpError');
 
 const router = express.Router();
 const formations = new Map(catalog.map(({ key, slots }) => [key, new Set(slots.map(({ id }) => id))]));
-const playerFields = 'name birthDate club position subPosition currentValue externalIds.transfermarkt';
+const playerFields = 'name birthDate club position subPosition currentValue imageUrl externalIds.transfermarkt';
 const isId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
 const positiveInteger = (value) => Number.isSafeInteger(value) && value > 0;
 

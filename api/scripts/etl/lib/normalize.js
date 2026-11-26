@@ -71,7 +71,18 @@ function season(value) {
   return `${year}-${String((year + 1) % 100).padStart(2, '0')}`;
 }
 
+// Player portrait from the Transfermarkt CSV. Only their image host is
+// accepted, and the generic silhouette (".../default.jpg") counts as no photo.
+const TM_IMAGES = /^https:\/\/img\.a\.transfermarkt\.technology\/portrait\/[\w/.-]+\.(?:jpe?g|png|webp)(?:\?[\w=&.-]*)?$/i;
+function imageUrl(value) {
+  const s = blank(value);
+  if (s === null || !TM_IMAGES.test(s) || /\/default\.(?:jpe?g|png)/i.test(s)) return null;
+  return s;
+}
+
 module.exports = {
+  imageUrl,
+  TM_IMAGES,
   COMPETITION_NAMES,
   blank,
   cleanName,

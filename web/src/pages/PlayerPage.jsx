@@ -43,6 +43,24 @@ function PlayerHeader({ player }) {
   );
 }
 
+const WIKIPEDIA_ARTICLE = /^https:\/\/(?:es|en)\.wikipedia\.org\/wiki\/[^\s?#]+$/;
+
+// Lead paragraph of the player's Wikipedia article (CC BY-SA), loaded by the
+// 06-bios ETL. Players without an article simply show nothing.
+function PlayerBio({ bio }) {
+  if (typeof bio?.text !== 'string' || !bio.text || !WIKIPEDIA_ARTICLE.test(bio.url ?? '')) return null;
+  return (
+    <section className="card player-bio" aria-labelledby="player-bio-title">
+      <h2 id="player-bio-title">Sobre el jugador</h2>
+      <p lang={bio.lang}>{bio.text}</p>
+      <p className="identity-photo-credit">
+        Texto de <a href={bio.url} target="_blank" rel="noopener noreferrer">Wikipedia</a>
+        {' · '}<a href="https://creativecommons.org/licenses/by-sa/4.0/deed.es" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>
+      </p>
+    </section>
+  );
+}
+
 export default function PlayerPage() {
   const { playerId } = useParams();
   return <PlayerDetails key={playerId} playerId={playerId} />;
@@ -68,6 +86,7 @@ function PlayerDetails({ playerId }) {
       ) : (
         <>
           <PlayerHeader player={player} />
+          <PlayerBio bio={player.bio} />
           <dl className="facts card">
             <div>
               <dt>Referencia por comparables</dt>

@@ -238,6 +238,10 @@ h2 {
 .player-profile-market dt { color: var(--text-2); font-size: 0.78rem; }
 .player-profile-market dd { margin: 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
+.player-bio { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
+.player-bio h2 { margin: 0; font-size: 1rem; }
+.player-bio p:not(.identity-photo-credit) { margin: 0; max-width: 72ch; line-height: 1.6; text-wrap: pretty; }
+
 .app-footer {
   max-width: 1440px;
   margin: 0 auto;

@@ -31,7 +31,7 @@ const FIELDS = [
   'externalIds',
 ];
 const LIST_SELECT =
-  'name position subPosition foot heightCm birthDate club currentValue predictedValue contractUntil lastSeason externalIds.transfermarkt';
+  'name position subPosition foot heightCm birthDate club currentValue predictedValue contractUntil lastSeason imageUrl externalIds.transfermarkt';
 const SORT_FIELDS = ['name', 'position', 'birthDate', 'currentValue', 'predictedValue'];
 
 async function applyCatalogFilters(match, { clubId, subPosition, minValue, excludeIds }, maxValue) {
